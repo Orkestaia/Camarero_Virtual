@@ -269,186 +269,188 @@ function App() {
   }
 
   return (
+    <>
       <header className="fixed top-0 left-0 right-0 z-20 bg-white/90 backdrop-blur-md border-b border-stone-200/50 h-16 flex items-center justify-between px-4 shadow-sm">
-           <button onClick={() => setAppMode('selection')} className="flex items-center gap-2">
-             <div className="w-8 h-8 bg-[#1B4332] rounded-full flex items-center justify-center text-white">
-               <ChefHat size={16} strokeWidth={1.5} />
-             </div>
-             <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi</span>
-           </button>
-           <div className="flex items-center gap-2 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
-             <span className="text-[10px] text-stone-500 uppercase font-bold">Mesa</span>
-             <span className="font-serif font-bold text-lg leading-none">{tableNumber}</span>
-           </div>
-      </header>
- 
-       <main className="flex-1 w-full p-4 pt-24 pb-32 flex flex-col gap-6 max-w-md mx-auto relative z-10">
-           {/* MODE: CHAT / PATXI */}
-           {activeTab === 'chat' && (
-             <div className="flex flex-col gap-4">
-                 {/* Patxi Card */}
-                 <div className="bg-[#1B4332] text-stone-100 rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col items-center text-center border border-[#D4A574]/30 min-h-[350px] justify-between">
-                     
-                     {/* Status / Visualizer */}
-                     <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center">
-                         {status === 'disconnected' ? (
-                             <>
-                                 <div className="mb-4 p-5 bg-gradient-to-br from-[#1B4332] to-[#2D5A45] rounded-full border border-[#D4A574]/50 shadow-inner">
-                                     <Mic size={32} className="text-stone-400" />
-                                 </div>
-                                 <h2 className="text-3xl font-serif italic mb-2 text-white">¡Kaixo!</h2>
-                                 <p className="text-stone-300 text-sm font-light leading-relaxed mb-6">
-                                     Soy Patxi. Pulsa el botón para pedir.
-                                 </p>
-                             </>
-                         ) : status === 'connecting' ? (
-                             <div className="animate-pulse flex flex-col items-center">
-                                 <div className="w-12 h-12 border-2 border-amber-500/50 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                 <p className="font-serif italic text-stone-300 text-sm">Conectando...</p>
-                             </div>
-                         ) : (
-                             <div className="w-full flex flex-col items-center">
-                                 <div className="mb-4 w-full h-20 flex items-center justify-center">
-                                     <Visualizer isActive={!isMuted} volume={volumeLevel} />
-                                 </div>
-                                 <p className="text-amber-500/80 font-bold animate-pulse mb-2 text-[10px] uppercase tracking-[0.2em]">
-                                     {isMuted ? "En pausa" : "Escuchando..."}
-                                 </p>
-                             </div>
-                         )}
-                     </div>
- 
-                     {/* Action Button INSIDE Card */}
-                     <div className="relative z-20 w-full mt-4">
-                         {status === 'disconnected' || status === 'error' ? (
-                             <button 
-                                 onClick={connect} 
-                                 disabled={menuLoading}
-                                 className="w-full bg-[#FDF8F3] text-[#1B4332] rounded-xl py-4 font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
-                             >
-                                 <Mic size={20} />
-                                 <span>Hablar con Patxi</span>
-                             </button>
-                         ) : (
-                             <div className="flex gap-2">
-                                 <button 
-                                     onClick={() => setIsMuted(!isMuted)} 
-                                     className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isMuted ? 'bg-red-500/20 text-red-100 border border-red-500/50' : 'bg-stone-800/50 text-white border border-stone-600'}`}
-                                 >
-                                     {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                                     {isMuted ? "Mutear" : "Pausar"}
-                                 </button>
-                                 <button 
-                                     onClick={disconnect} 
-                                     className="px-6 rounded-xl bg-red-600 text-white font-bold"
-                                 >
-                                     X
-                                 </button>
-                             </div>
-                         )}
-                     </div>
- 
-                     {/* Background FX */}
-                     <div className="absolute top-[-50%] left-[-20%] w-80 h-80 bg-amber-900/20 rounded-full blur-[80px]"></div>
-                 </div>
-                 
-                 {/* BIG MENU BUTTON */}
-                 <button 
-                     onClick={() => setActiveTab('menu')}
-                     className="w-full bg-white border border-stone-200 p-5 rounded-2xl shadow-sm hover:shadow-md active:scale-98 transition-all flex items-center justify-between group"
-                 >
-                     <div className="flex items-center gap-4">
-                         <div className="bg-[#FDF8F3] p-3 rounded-full text-[#BC6C4F]">
-                             <LayoutGrid size={24} />
-                         </div>
-                         <div className="text-left">
-                             <h3 className="font-serif text-xl font-bold text-[#1B4332]">Ver la Carta</h3>
-                             <p className="text-xs text-stone-500">Explora platos y fotos</p>
-                         </div>
-                     </div>
-                     <span className="text-stone-300 group-hover:translate-x-1 transition-transform">→</span>
-                 </button>
- 
-                 {/* Live Logs (Subtle) */}
-                 {status === 'connected' && logs.length > 0 && (
-                     <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 text-xs text-stone-500 space-y-1 max-h-32 overflow-y-auto">
-                         {logs.slice(-3).map((log, i) => (
-                             <div key={i} className="truncate opacity-70">
-                                 {log.role === 'user' ? '👤 ' : '🤖 '} {log.text}
-                             </div>
-                         ))}
-                     </div>
-                 )}
-             </div>
-           )}
- 
-           {/* MODE: MENU */}
-           {activeTab === 'menu' && (
-             <div className="flex flex-col h-full">
-                 <button 
-                     onClick={() => setActiveTab('chat')}
-                     className="mb-4 text-sm font-bold text-stone-500 flex items-center gap-2 hover:text-[#1B4332]"
-                 >
-                     ← Volver a Patxi
-                 </button>
-                 <div className="flex-1 bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm min-h-[60rem]">
-                     <MenuExplorer menu={menu} onAddItem={(item) => handleAddToCart(item, 1)} />
-                 </div>
-             </div>
-           )}
- 
-           <div className="h-24"></div> 
-       </main>
- 
-       {/* ORDER SUMMARY FIXED BOTTOM (Only if items exist) */ }
-  {
-    cartItems.length > 0 && (
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-stone-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-50">
-        <button
-          onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-          className="w-full bg-[#BC6C4F] text-white py-4 rounded-xl font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"
-        >
-          <span>Ver Pedido ({cartItems.length})</span>
-          <span className="bg-white/20 px-2 py-0.5 rounded text-sm">{totalPrice.toFixed(2)}€</span>
+        <button onClick={() => setAppMode('selection')} className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-[#1B4332] rounded-full flex items-center justify-center text-white">
+            <ChefHat size={16} strokeWidth={1.5} />
+          </div>
+          <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi</span>
         </button>
-        {/* Note: In a real mobile app we might want a modal for the summary. For now, scrolling down to the OrderSummary component which is rendered in "Selection" in original code? 
+        <div className="flex items-center gap-2 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
+          <span className="text-[10px] text-stone-500 uppercase font-bold">Mesa</span>
+          <span className="font-serif font-bold text-lg leading-none">{tableNumber}</span>
+        </div>
+      </header>
+
+      <main className="flex-1 w-full p-4 pt-24 pb-32 flex flex-col gap-6 max-w-md mx-auto relative z-10">
+        {/* MODE: CHAT / PATXI */}
+        {activeTab === 'chat' && (
+          <div className="flex flex-col gap-4">
+            {/* Patxi Card */}
+            <div className="bg-[#1B4332] text-stone-100 rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col items-center text-center border border-[#D4A574]/30 min-h-[350px] justify-between">
+
+              {/* Status / Visualizer */}
+              <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center">
+                {status === 'disconnected' ? (
+                  <>
+                    <div className="mb-4 p-5 bg-gradient-to-br from-[#1B4332] to-[#2D5A45] rounded-full border border-[#D4A574]/50 shadow-inner">
+                      <Mic size={32} className="text-stone-400" />
+                    </div>
+                    <h2 className="text-3xl font-serif italic mb-2 text-white">¡Kaixo!</h2>
+                    <p className="text-stone-300 text-sm font-light leading-relaxed mb-6">
+                      Soy Patxi. Pulsa el botón para pedir.
+                    </p>
+                  </>
+                ) : status === 'connecting' ? (
+                  <div className="animate-pulse flex flex-col items-center">
+                    <div className="w-12 h-12 border-2 border-amber-500/50 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="font-serif italic text-stone-300 text-sm">Conectando...</p>
+                  </div>
+                ) : (
+                  <div className="w-full flex flex-col items-center">
+                    <div className="mb-4 w-full h-20 flex items-center justify-center">
+                      <Visualizer isActive={!isMuted} volume={volumeLevel} />
+                    </div>
+                    <p className="text-amber-500/80 font-bold animate-pulse mb-2 text-[10px] uppercase tracking-[0.2em]">
+                      {isMuted ? "En pausa" : "Escuchando..."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Button INSIDE Card */}
+              <div className="relative z-20 w-full mt-4">
+                {status === 'disconnected' || status === 'error' ? (
+                  <button
+                    onClick={connect}
+                    disabled={menuLoading}
+                    className="w-full bg-[#FDF8F3] text-[#1B4332] rounded-xl py-4 font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
+                  >
+                    <Mic size={20} />
+                    <span>Hablar con Patxi</span>
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsMuted(!isMuted)}
+                      className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isMuted ? 'bg-red-500/20 text-red-100 border border-red-500/50' : 'bg-stone-800/50 text-white border border-stone-600'}`}
+                    >
+                      {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                      {isMuted ? "Mutear" : "Pausar"}
+                    </button>
+                    <button
+                      onClick={disconnect}
+                      className="px-6 rounded-xl bg-red-600 text-white font-bold"
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Background FX */}
+              <div className="absolute top-[-50%] left-[-20%] w-80 h-80 bg-amber-900/20 rounded-full blur-[80px]"></div>
+            </div>
+
+            {/* BIG MENU BUTTON */}
+            <button
+              onClick={() => setActiveTab('menu')}
+              className="w-full bg-white border border-stone-200 p-5 rounded-2xl shadow-sm hover:shadow-md active:scale-98 transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="bg-[#FDF8F3] p-3 rounded-full text-[#BC6C4F]">
+                  <LayoutGrid size={24} />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-serif text-xl font-bold text-[#1B4332]">Ver la Carta</h3>
+                  <p className="text-xs text-stone-500">Explora platos y fotos</p>
+                </div>
+              </div>
+              <span className="text-stone-300 group-hover:translate-x-1 transition-transform">→</span>
+            </button>
+
+            {/* Live Logs (Subtle) */}
+            {status === 'connected' && logs.length > 0 && (
+              <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 text-xs text-stone-500 space-y-1 max-h-32 overflow-y-auto">
+                {logs.slice(-3).map((log, i) => (
+                  <div key={i} className="truncate opacity-70">
+                    {log.role === 'user' ? '👤 ' : '🤖 '} {log.text}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODE: MENU */}
+        {activeTab === 'menu' && (
+          <div className="flex flex-col h-full">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className="mb-4 text-sm font-bold text-stone-500 flex items-center gap-2 hover:text-[#1B4332]"
+            >
+              ← Volver a Patxi
+            </button>
+            <div className="flex-1 bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm min-h-[60rem]">
+              <MenuExplorer menu={menu} onAddItem={(item) => handleAddToCart(item, 1)} />
+            </div>
+          </div>
+        )}
+
+        <div className="h-24"></div>
+      </main>
+
+      {/* ORDER SUMMARY FIXED BOTTOM (Only if items exist) */}
+      {
+        cartItems.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-stone-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-50">
+            <button
+              onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+              className="w-full bg-[#BC6C4F] text-white py-4 rounded-xl font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"
+            >
+              <span>Ver Pedido ({cartItems.length})</span>
+              <span className="bg-white/20 px-2 py-0.5 rounded text-sm">{totalPrice.toFixed(2)}€</span>
+            </button>
+            {/* Note: In a real mobile app we might want a modal for the summary. For now, scrolling down to the OrderSummary component which is rendered in "Selection" in original code? 
                  Wait, OrderSummary was in the sidebar. I need to render it somewhere. 
                  I'll add it to the bottom of the main list or a modal. 
                  For simplicity, let's keep it embedded at the bottom of the main view but visible.
               */}
+          </div>
+        )
+      }
+
+      <div className="hidden">
+        {/* Hack to keep OrderSummary logic alive if needed, or re-implement below */}
+        <OrderSummary
+          items={cartItems}
+          total={totalPrice}
+          tableNumber={tableNumber}
+          onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
+          onRemoveItem={handleRemoveItem}
+          onUpdateQuantity={handleUpdateQuantity}
+          isSending={isSending}
+        />
+        <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
       </div>
-    )
-  }
 
-  <div className="hidden">
-    {/* Hack to keep OrderSummary logic alive if needed, or re-implement below */}
-    <OrderSummary
-      items={cartItems}
-      total={totalPrice}
-      tableNumber={tableNumber}
-      onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
-      onRemoveItem={handleRemoveItem}
-      onUpdateQuantity={handleUpdateQuantity}
-      isSending={isSending}
-    />
-    <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
-  </div>
-
-  {/* RE-INSERTING ORDER SUMMARY VISIBLY AT BOTTOM OF LIST */ }
-  <div className="w-full px-4 pb-24 max-w-md mx-auto relative z-10">
-    <OrderSummary
-      items={cartItems}
-      total={totalPrice}
-      tableNumber={tableNumber}
-      onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
-      onRemoveItem={handleRemoveItem}
-      onUpdateQuantity={handleUpdateQuantity}
-      isSending={isSending}
-    />
-    <div className="mt-8">
-      <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
-    </div>
-  </div>
+      {/* RE-INSERTING ORDER SUMMARY VISIBLY AT BOTTOM OF LIST */}
+      <div className="w-full px-4 pb-24 max-w-md mx-auto relative z-10">
+        <OrderSummary
+          items={cartItems}
+          total={totalPrice}
+          tableNumber={tableNumber}
+          onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
+          onRemoveItem={handleRemoveItem}
+          onUpdateQuantity={handleUpdateQuantity}
+          isSending={isSending}
+        />
+        <div className="mt-8">
+          <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
+        </div>
+      </div>
+    </>
   );
 }
 
