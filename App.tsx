@@ -192,7 +192,7 @@ function App() {
     volumeLevel,
     logs
   } = useLiveSession({
-    apiKey: process.env.API_KEY as string,
+    apiKey: import.meta.env.VITE_GEMINI_API_KEY as string,
     tableNumber,
     menu,
     onAddToCart: handleAddToCart,
@@ -324,8 +324,8 @@ function App() {
                           <div className="w-full max-w-lg space-y-2">
                             {logs.slice(-3).map((log, i) => (
                               <div key={i} className={`text-sm py-2 px-4 rounded-lg backdrop-blur-md border ${log.role === 'system' ? 'bg-emerald-900/20 border-emerald-500/20 text-emerald-100 ml-auto text-right' :
-                                  log.role === 'error' ? 'bg-red-900/20 border-red-500/20 text-red-200 mx-auto text-center' :
-                                    'bg-stone-800/50 border-stone-700/50 text-stone-200 mr-auto text-left'
+                                log.role === 'error' ? 'bg-red-900/20 border-red-500/20 text-red-200 mx-auto text-center' :
+                                  'bg-stone-800/50 border-stone-700/50 text-stone-200 mr-auto text-left'
                                 }`}>
                                 {log.text.replace(/^[✓✗→] /, '')}
                               </div>
