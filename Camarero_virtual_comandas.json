@@ -1,0 +1,181 @@
+{
+  "name": "Camarero_virtual_comandas",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "9d2ccd81-7b77-4538-8f98-00fa0469331e",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        -16
+      ],
+      "id": "fb5ea0ad-f971-4291-8bbe-bdd0db97cba7",
+      "name": "Webhook",
+      "webhookId": "9d2ccd81-7b77-4538-8f98-00fa0469331e"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1jMkUn7r8qIM8Fs4kE1C3GCbTk6sIWikITxiLCdlpHxo",
+          "mode": "list",
+          "cachedResultName": "restaurante-garrote-comandas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1jMkUn7r8qIM8Fs4kE1C3GCbTk6sIWikITxiLCdlpHxo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 427352638,
+          "mode": "list",
+          "cachedResultName": "restaurante-garrote-comandas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1jMkUn7r8qIM8Fs4kE1C3GCbTk6sIWikITxiLCdlpHxo/edit#gid=427352638"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "Numero_pedido"
+          ],
+          "schema": [
+            {
+              "id": "Numero_pedido",
+              "displayName": "Numero_pedido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "numero_mesa",
+              "displayName": "numero_mesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Pedido",
+              "displayName": "Pedido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_pedido",
+              "displayName": "hora_pedido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_aceptado",
+              "displayName": "hora_aceptado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_entrega",
+              "displayName": "hora_entrega",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notas_especiales",
+              "displayName": "notas_especiales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "comensales",
+              "displayName": "comensales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_pedido",
+              "displayName": "total_pedido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        -16
+      ],
+      "id": "62b48253-2657-4494-95ac-0efcfebf8414",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "eo1f1XyslpB7CNMJ",
+          "name": "Google Sheets Orkesta"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3c23a9a3-74f7-441b-b1b8-b8d37f3d642a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "29f353db7ddf19d258bfd2bbd6f7b58a78a40556d218e8ef571f6d2447ad248e"
+  },
+  "id": "hUC1rHFQuXT5WtHJ",
+  "tags": []
+}
