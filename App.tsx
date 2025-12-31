@@ -209,32 +209,50 @@ function App() {
   // --- RENDER ---
   if (appMode === 'selection') {
     return (
-      <div className="min-h-screen bg-[#1B4332] flex items-center justify-center p-4 font-sans relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-        <div className="bg-white rounded-sm p-10 max-w-lg w-full text-center shadow-2xl relative z-10 border border-stone-800">
-          <ChefHat className="w-20 h-20 text-stone-800 mx-auto mb-6" strokeWidth={1.5} />
-          <h1 className="text-4xl font-serif font-bold text-[#1B4332] mb-2">Patxi</h1>
-          <p className="text-[#BC6C4F] mb-10 tracking-widest text-sm uppercase">Restaurante Garrote</p>
-          <div className="space-y-4">
-            <button onClick={() => setAppMode('kitchen')} className="w-full p-6 rounded-sm border border-stone-200 hover:border-amber-600 hover:bg-stone-50 transition-all group flex items-center gap-6 text-left">
-              <div className="bg-stone-100 p-4 rounded-full group-hover:bg-amber-100 transition-colors">
-                <ChefHat className="text-stone-700 group-hover:text-amber-700" size={24} />
+      <div className="min-h-screen bg-[#1B4332] flex flex-col p-6 font-sans relative overflow-hidden text-center">
+        {/* Mobile Header */}
+        <div className="flex-1 flex flex-col items-center justify-center z-10">
+          <ChefHat className="w-24 h-24 text-[#D4A574] mb-6 drop-shadow-lg" strokeWidth={1.5} />
+          <h1 className="text-5xl font-serif font-bold text-[#FDF8F3] mb-2 tracking-tight">Patxi</h1>
+          <p className="text-[#D4A574] mb-12 tracking-[0.2em] text-sm uppercase font-bold">Restaurante Garrote</p>
+
+          <div className="w-full max-w-sm space-y-4">
+            <button
+              onClick={() => setAppMode('dining')}
+              className="w-full p-6 rounded-xl bg-[#FDF8F3] hover:bg-white active:scale-95 transition-all shadow-xl flex items-center gap-4 group"
+            >
+              <div className="bg-[#1B4332] p-4 rounded-full text-white">
+                <User size={28} />
               </div>
-              <div>
-                <h3 className="font-serif text-xl font-bold text-stone-800">Cocina</h3>
-                <p className="text-xs font-medium text-stone-400 uppercase tracking-wide">Panel de Comandas</p>
+              <div className="text-left flex-1">
+                <h3 className="font-serif text-2xl font-bold text-[#1B4332]">Soy Cliente</h3>
+                <p className="text-xs font-bold text-[#BC6C4F] uppercase tracking-wide">Asistente Virtual</p>
               </div>
+              <Sparkles className="text-[#D4A574]" />
             </button>
-            <button onClick={() => setAppMode('dining')} className="w-full p-6 rounded-sm border border-stone-200 hover:border-stone-800 hover:bg-stone-50 transition-all group flex items-center gap-6 text-left">
-              <div className="bg-stone-100 p-4 rounded-full group-hover:bg-stone-200 transition-colors">
-                <User className="text-stone-700 group-hover:text-stone-900" size={24} />
+
+            <div className="relative">
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-[#D4A574]/30"></div>
+              <span className="relative bg-[#1B4332] px-2 text-[#D4A574] text-xs uppercase tracking-widest">o</span>
+            </div>
+
+            <button
+              onClick={() => setAppMode('kitchen')}
+              className="w-full p-6 rounded-xl bg-[#163025] border border-[#2D5A45] active:scale-95 transition-all shadow-lg flex items-center gap-4 group"
+            >
+              <div className="bg-[#2D5A45] p-4 rounded-full text-[#D4A574]">
+                <ChefHat size={28} />
               </div>
-              <div>
-                <h3 className="font-serif text-xl font-bold text-stone-800">Sala / Cliente</h3>
-                <p className="text-xs font-medium text-stone-400 uppercase tracking-wide">Asistente Virtual</p>
+              <div className="text-left flex-1">
+                <h3 className="font-serif text-xl font-bold text-[#FDF8F3]">Soy Cocinero</h3>
+                <p className="text-xs font-medium text-[#D4A574]/80 uppercase tracking-wide">Pantalla KDS</p>
               </div>
             </button>
           </div>
+        </div>
+
+        <div className="absolute bottom-4 left-0 right-0 text-center">
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">Gestión Inteligente v2.0</p>
         </div>
       </div>
     );
