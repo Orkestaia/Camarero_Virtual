@@ -37,8 +37,8 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={`pb-1 text-sm tracking-widest uppercase transition-all whitespace-nowrap font-medium ${activeCategory === cat
-                  ? 'text-[#1B4332] border-b-2 border-[#D4A574]'
-                  : 'text-stone-400 hover:text-[#1B4332] border-b-2 border-transparent'
+                ? 'text-[#1B4332] border-b-2 border-[#D4A574]'
+                : 'text-stone-400 hover:text-[#1B4332] border-b-2 border-transparent'
                 }`}
             >
               {cat}
@@ -52,14 +52,26 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
         {filteredMenu.map(item => (
           <div key={item.id} className="group bg-white rounded-sm border border-stone-100 hover:border-[#D4A574] transition-all duration-300 hover:shadow-xl hover:shadow-stone-200/50 flex flex-col h-full relative overflow-hidden">
 
-            {/* Abstract Header Gradient (Simulating Image placeholder) */}
-            <div className="h-2 bg-gradient-to-r from-stone-200 to-stone-100 group-hover:from-[#FDF8F3] group-hover:to-[#D4A574]/20 transition-colors"></div>
+            {/* Image Header if available */}
+            {item.image && (
+              <div className="w-full h-40 overflow-hidden rounded-sm mb-2">
+                <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              </div>
+            )}
+
+            {!item.image && (
+              <div className="h-2 bg-gradient-to-r from-stone-200 to-stone-100 group-hover:from-[#FDF8F3] group-hover:to-[#D4A574]/20 transition-colors"></div>
+            )}
 
             <div className="p-5 flex flex-col flex-1">
               <div className="flex justify-between items-start mb-2 gap-4">
-                <h3 className="font-serif font-semibold text-xl text-[#1B4332] leading-tight group-hover:text-[#BC6C4F] transition-colors">
-                  {item.name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-semibold text-xl text-[#1B4332] leading-tight group-hover:text-[#BC6C4F] transition-colors">
+                    {item.name}
+                  </h3>
+                  {item.isTop3 && <span title="Top 3 Favorito" className="text-amber-500 animate-pulse text-sm">⭐ Top 3</span>}
+                  {item.isChefChoice && <span title="Sugerencia del Chef" className="text-[#BC6C4F] text-lg">👨‍🍳</span>}
+                </div>
                 <span className="font-mono text-base font-medium text-stone-800 shrink-0">
                   {item.price.toFixed(2)}€
                 </span>
@@ -72,14 +84,25 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
               </p>
 
               <div className="space-y-3 mt-2">
-                {/* Diet Tags */}
+                {/* Diet Tags (Excluding Omnivoro) */}
                 {item.dietary.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {item.dietary.map((d, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold text-emerald-800 bg-emerald-50/50 px-2 py-1 rounded-sm border border-emerald-100">
-                        {getDietIcon(d)} {d}
-                      </span>
-                    ))}
+                    {item.dietary.map((d, i) => {
+                      const lower = d.toLowerCase();
+                      if (lower.includes('omnivoro') || lower.includes('omnívoro')) return null;
+
+                      let icon = '🥗'; // generic
+                      let colorClass = 'text-emerald-800 bg-emerald-50/50 border-emerald-100';
+
+                      if (lower.includes('gluten')) { icon = '🌾🚫'; colorClass = 'text-amber-800 bg-amber-50/50 border-amber-100'; }
+                      if (lower.includes('picante')) { icon = '🌶️'; colorClass = 'text-red-800 bg-red-50/50 border-red-100'; }
+
+                      return (
+                        <span key={i} className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded-sm border ${colorClass}`}>
+                          {icon} {d}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
 
