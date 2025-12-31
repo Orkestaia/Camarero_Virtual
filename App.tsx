@@ -252,7 +252,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">Gestión Inteligente v2.2 (Chef Update)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">Gestión Inteligente v2.3 (Data Fix)</p>
         </div>
       </div>
     );

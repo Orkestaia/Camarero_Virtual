@@ -78,6 +78,14 @@ export async function fetchMenuFromSheets(): Promise<MenuItem[]> {
     try {
         const data = await fetchSheetData(MENU_CSV_URL);
 
+        // Helper for robust boolean parsing
+        const isTrue = (val: any) => {
+            if (!val) return false;
+            const s = String(val).toLowerCase().trim();
+            // Check for checkmarks, 'si', 'yes', etc.
+            return ['true', 'si', 'yes', '1', 's', 'y', 'ok', 'x'].includes(s);
+        };
+
         return data.map((row, index) => {
             const price = parseFloat(row['precio']?.replace('€', '').trim() || '0');
 
@@ -92,8 +100,9 @@ export async function fetchMenuFromSheets(): Promise<MenuItem[]> {
                 available: (row['disponibilidad'] || 'TRUE').toUpperCase() === 'TRUE',
                 ingredients: (row['ingredientes'] || '').split(',').map(s => s.trim()),
                 image: row['imagen'] || row['foto'] || undefined,
-                isChefChoice: ['true', 'si', 'yes', '1'].includes((row['chef'] || row['sugerencia'] || '').toLowerCase()),
-                isTop3: ['true', 'si', 'yes', '1'].includes((row['top3'] || '').toLowerCase())
+                // Check multiple possible column names for Chef/Top3
+                isChefChoice: isTrue(row['chef']) || isTrue(row['sugerencia']) || isTrue(row['sugerencias']) || isTrue(row['recomendado']),
+                isTop3: isTrue(row['top3']) || isTrue(row['top 3']) || isTrue(row['favorito']) || isTrue(row['popular'])
             };
         }).filter(item => item.name !== 'Desconocido');
 
