@@ -29,16 +29,16 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
 
   return (
     <div className="h-full flex flex-col bg-[#FDF8F3]">
-      {/* Categories Header - Sticky & Premium */}
-      <div className="sticky top-0 z-10 glass border-b border-stone-200/50 backdrop-blur-md">
-        <div className="flex gap-4 overflow-x-auto p-4 scrollbar-hide shrink-0 items-center">
+      {/* Categories Header - Sticky & Premium - Improved Touch Targets */}
+      <div className="sticky top-0 z-10 glass border-b border-stone-200/50 backdrop-blur-md shadow-sm">
+        <div className="flex gap-2 overflow-x-auto p-3 scrollbar-hide shrink-0 items-center px-4">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`pb-1 text-sm tracking-widest uppercase transition-all whitespace-nowrap font-medium ${activeCategory === cat
-                ? 'text-[#1B4332] border-b-2 border-[#D4A574]'
-                : 'text-stone-400 hover:text-[#1B4332] border-b-2 border-transparent'
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full transition-all whitespace-nowrap active:scale-95 ${activeCategory === cat
+                ? 'bg-[#1B4332] text-[#FDF8F3] shadow-md'
+                : 'bg-white text-stone-500 border border-stone-200'
                 }`}
             >
               {cat}
@@ -48,83 +48,70 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
       </div>
 
       {/* Grid */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-min pb-20">
         {filteredMenu.map(item => (
-          <div key={item.id} className="group bg-white rounded-sm border border-stone-100 hover:border-[#D4A574] transition-all duration-300 hover:shadow-xl hover:shadow-stone-200/50 flex flex-col h-full relative overflow-hidden">
+          <div key={item.id} className="group bg-white rounded-xl border border-stone-100 shadow-sm flex flex-col relative overflow-hidden active:border-[#D4A574] transition-colors">
 
-            {/* Image Header if available */}
-            {item.image && (
-              <div className="w-full h-40 overflow-hidden rounded-sm mb-2">
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            {/* Image Header */}
+            {item.image ? (
+              <div className="w-full h-48 overflow-hidden bg-stone-100">
+                <img src={item.image} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
               </div>
+            ) : (
+              <div className="h-1 bg-[#1B4332]"></div>
             )}
 
-            {!item.image && (
-              <div className="h-2 bg-gradient-to-r from-stone-200 to-stone-100 group-hover:from-[#FDF8F3] group-hover:to-[#D4A574]/20 transition-colors"></div>
-            )}
-
-            <div className="p-5 flex flex-col flex-1">
-              <div className="flex justify-between items-start mb-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-serif font-semibold text-xl text-[#1B4332] leading-tight group-hover:text-[#BC6C4F] transition-colors">
+            <div className="p-4 flex flex-col flex-1">
+              <div className="flex justify-between items-start mb-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <h3 className="font-serif font-bold text-lg text-[#1B4332] leading-tight">
                     {item.name}
                   </h3>
-                  {item.isTop3 && <span title="Top 3 Favorito" className="text-amber-500 animate-pulse text-sm">⭐ Top 3</span>}
-                  {item.isChefChoice && <span title="Sugerencia del Chef" className="text-[#BC6C4F] text-lg">👨‍🍳</span>}
+                  <div className="flex items-center gap-2">
+                    {item.isTop3 && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">⭐ Top</span>}
+                    {item.isChefChoice && <span className="text-[10px] bg-[#BC6C4F]/10 text-[#BC6C4F] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">👨‍🍳 Chef</span>}
+                  </div>
                 </div>
-                <span className="font-mono text-base font-medium text-stone-800 shrink-0">
+                <span className="font-mono text-lg font-bold text-[#BC6C4F] shrink-0">
                   {item.price.toFixed(2)}€
                 </span>
               </div>
 
-              <div className="w-8 h-px bg-[#D4A574] mb-3 opacity-50"></div>
-
-              <p className="text-sm text-stone-500 font-light leading-relaxed mb-4 flex-1">
+              <p className="text-sm text-stone-500 font-normal leading-relaxed mb-4 line-clamp-3">
                 {item.description}
               </p>
 
-              <div className="space-y-3 mt-2">
-                {/* Diet Tags (Excluding Omnivoro) */}
+              <div className="mt-auto space-y-3">
+                {/* Diet Tags (Compact) */}
                 {item.dietary.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {item.dietary.map((d, i) => {
                       const lower = d.toLowerCase();
                       if (lower.includes('omnivoro') || lower.includes('omnívoro')) return null;
 
-                      let icon = '🥗'; // generic
-                      let colorClass = 'text-emerald-800 bg-emerald-50/50 border-emerald-100';
+                      let icon = '🥗';
+                      let colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-100';
 
-                      if (lower.includes('gluten')) { icon = '🌾🚫'; colorClass = 'text-amber-800 bg-amber-50/50 border-amber-100'; }
-                      if (lower.includes('picante')) { icon = '🌶️'; colorClass = 'text-red-800 bg-red-50/50 border-red-100'; }
+                      if (lower.includes('gluten')) { icon = '🌾🚫'; colorClass = 'text-amber-700 bg-amber-50 border-amber-100'; }
+                      if (lower.includes('picante')) { icon = '🌶️'; colorClass = 'text-red-700 bg-red-50 border-red-100'; }
 
                       return (
-                        <span key={i} className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded-sm border ${colorClass}`}>
-                          {icon} {d}
+                        <span key={i} className={`inline-flex items-center gap-1 text-[9px] uppercase font-bold px-2 py-1 rounded border ${colorClass}`}>
+                          {icon} {d.replace('sin ', '')}
                         </span>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Allergens - Minimalist */}
-                {item.allergens.length > 0 && (item.allergens[0] !== 'ninguno') && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
-                    <AlertCircle size={10} />
-                    <span className="italic">Alergenos: {item.allergens.join(', ')}</span>
-                  </div>
-                )}
+                <button
+                  onClick={() => onAddItem(item)}
+                  className="w-full py-3.5 bg-stone-50 active:bg-[#1B4332] active:text-white text-stone-700 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-colors border border-stone-200"
+                >
+                  <Plus size={16} />
+                  Añadir
+                </button>
               </div>
-            </div>
-
-            {/* Add Button - Subtle until hover */}
-            <div className="p-4 pt-0 mt-auto">
-              <button
-                onClick={() => onAddItem(item)}
-                className="w-full py-3 bg-stone-50 text-stone-600 text-xs font-bold uppercase tracking-widest hover:bg-stone-900 hover:text-white transition-all duration-300 rounded-sm flex items-center justify-center gap-2 group-hover:bg-stone-100 group-hover:text-stone-900"
-              >
-                <Plus size={14} />
-                Añadir al pedido
-              </button>
             </div>
           </div>
         ))}
