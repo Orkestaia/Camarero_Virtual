@@ -370,6 +370,56 @@ function App() {
               <span className="text-stone-300 group-hover:translate-x-1 transition-transform">→</span>
             </button>
 
+            {/* SUGERENCIAS DEL CHEF (4 ITEMS) */}
+            {menu.filter(m => m.isChefChoice).length > 0 && (
+              <div className="w-full animate-fadeIn">
+                <h3 className="font-serif text-lg font-bold text-[#1B4332] mb-3 flex items-center gap-2">
+                  <Sparkles className="text-[#D4A574]" size={18} />
+                  Sugerencias del Chef
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {menu.filter(m => m.isChefChoice).slice(0, 4).map(item => (
+                    <div key={item.id} className="bg-white p-3 rounded-xl border border-stone-100 shadow-sm flex flex-col relative overflow-hidden">
+
+                      {/* BADGES */}
+                      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+                        {item.isTop3 && (
+                          <div className="bg-white/90 backdrop-blur p-1 rounded-full shadow text-[10px]" title="Top 3">
+                            ⭐
+                          </div>
+                        )}
+                        <div className="bg-white/90 backdrop-blur p-1 rounded-full shadow text-[10px]" title="Sugerencia del Chef">
+                          👨‍🍳
+                        </div>
+                      </div>
+
+                      {item.image ? (
+                        <div className="w-full h-24 mb-2 rounded-lg overflow-hidden bg-stone-100">
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-24 mb-2 rounded-lg bg-stone-100 flex items-center justify-center text-stone-300">
+                          <ChefHat size={20} />
+                        </div>
+                      )}
+
+                      <h4 className="font-bold text-sm text-[#1B4332] leading-tight mb-1">{item.name}</h4>
+                      <p className="text-xs text-stone-500 line-clamp-2 mb-2 flex-1">{item.description}</p>
+                      <div className="flex justify-between items-center mt-auto">
+                        <span className="font-mono font-bold text-[#BC6C4F] text-sm">{item.price.toFixed(2)}€</span>
+                        <button
+                          onClick={() => handleAddToCart(item, 1)}
+                          className="bg-[#1B4332] text-white p-1.5 rounded-lg active:scale-90 transition-transform"
+                        >
+                          <div className="w-4 h-4 flex items-center justify-center font-bold">+</div>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Live Logs (Subtle) */}
             {status === 'connected' && logs.length > 0 && (
               <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 text-xs text-stone-500 space-y-1 max-h-32 overflow-y-auto">

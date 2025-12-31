@@ -54,11 +54,32 @@ const MenuExplorer: React.FC<MenuExplorerProps> = ({ menu, onAddItem }) => {
 
             {/* Image Header */}
             {item.image ? (
-              <div className="w-full h-48 overflow-hidden bg-stone-100">
+              <div className="w-full h-48 overflow-hidden bg-stone-100 relative">
                 <img src={item.image} alt={item.name} loading="lazy" className="w-full h-full object-cover" />
+                {/* ICONS OVERLAY */}
+                <div className="absolute top-2 right-2 flex flex-col gap-1.5 z-10">
+                  {item.isTop3 && (
+                    <div className="bg-white/95 backdrop-blur-sm p-1.5 rounded-full shadow-lg border border-stone-100 text-sm" title="Top 3">
+                      ⭐
+                    </div>
+                  )}
+                  {item.isChefChoice && (
+                    <div className="bg-white/95 backdrop-blur-sm p-1.5 rounded-full shadow-lg border border-stone-100 text-sm" title="Sugerencia del Chef">
+                      👨‍🍳
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
-              <div className="h-1 bg-[#1B4332]"></div>
+              <div className="h-1 bg-[#1B4332] relative">
+                {/* Icons fallback if no image */}
+                {(item.isTop3 || item.isChefChoice) && (
+                  <div className="absolute top-2 right-2 flex flex-col gap-1.5 z-10">
+                    {item.isTop3 && <div className="bg-white/90 p-1 rounded-full shadow border border-stone-100 text-xs">⭐</div>}
+                    {item.isChefChoice && <div className="bg-white/90 p-1 rounded-full shadow border border-stone-100 text-xs">👨‍🍳</div>}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="p-4 flex flex-col flex-1">
