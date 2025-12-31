@@ -228,10 +228,10 @@ export async function sendOrderToSheets(order: ConfirmedOrder): Promise<boolean>
         hora_pedido: timeStr,
         hora_aceptado: "",
         hora_entrega: "",
-        estado: 'pending',
+        estado: 'pendiente',
         notas_especiales: notesString,
-        comensales: order.diners,
-        total_pedido: order.totalPrice
+        comensales: order.diners.toString(),
+        total_pedido: order.totalPrice.toFixed(2)
     };
 
     // 3. Send to N8N
@@ -277,8 +277,8 @@ export async function updateOrderStatus(orderId: string, status: 'cooking' | 're
         hora_entrega: finalHoraEntrega,   // Send new or preserved delivered time
         estado: sheetStatus,
         notas_especiales: notesString,
-        comensales: order.diners,
-        total_pedido: order.totalPrice
+        comensales: order.diners.toString(),
+        total_pedido: order.totalPrice.toFixed(2)
     };
 
     // 3. Send to N8N
