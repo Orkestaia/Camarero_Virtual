@@ -6,7 +6,7 @@ import { MenuItem, ConfirmedOrder, OrderItem } from "../types";
 const MENU_SHEET_ID = "1lCnasTfceKEf1zCLaNN-pJ4dSoOcLXGSJqfhr5IjDaQ";
 
 // Updated Webhook URL from provided JSON (Assuming same instance domain)
-const N8N_WEBHOOK_URL = "https://aawebhookaa.vps.rubikmarketing.com.co/webhook/9d2ccd81-7b77-4538-8f98-00fa0469331e";
+const N8N_WEBHOOK_URL = "https://acgrowthmarketing.app.n8n.cloud/webhook/9d2ccd81-7b77-4538-8f98-00fa0469331e";
 
 // URLs to fetch data as CSV (Read Only - Fast)
 const MENU_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vSsGHRK2wtrNJg6a84Qd-Vae0tWY6waZ79MKpM6ouBYYc75jyWhG9BOtw0aceOFHB09E2MPFIeUjujV/pub?output=csv`;
