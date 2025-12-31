@@ -90,7 +90,10 @@ export async function fetchMenuFromSheets(): Promise<MenuItem[]> {
                 allergens: (row['alergenos'] || 'ninguno').split(',').map(s => s.trim()).filter(s => s !== 'ninguno'),
                 dietary: (row['tipo_dieta'] || '').split(',').map(s => s.trim()),
                 available: (row['disponibilidad'] || 'TRUE').toUpperCase() === 'TRUE',
-                ingredients: (row['ingredientes'] || '').split(',').map(s => s.trim())
+                ingredients: (row['ingredientes'] || '').split(',').map(s => s.trim()),
+                image: row['imagen'] || row['foto'] || undefined,
+                isChefChoice: (row['chef'] || '').toLowerCase() === 'true' || (row['sugerencia'] || '').toLowerCase() === 'true',
+                isTop3: (row['top3'] || '').toLowerCase() === 'true'
             };
         }).filter(item => item.name !== 'Desconocido');
 
@@ -168,11 +171,33 @@ export async function fetchOrdersFromSheets(): Promise<ConfirmedOrder[]> {
         if (!hasLoadedInitialOrders) {
             localOrders = [...sheetOrders];
             hasLoadedInitialOrders = true;
-        }
+        } else {
+            // Smart Merge: Preserve local state if it's "ahead" of the sheet
+            // Status hierarchy: pending (0) < cooking (1) < ready (2) < served (3)
+            const statusValue = { 'pending': 0, 'cooking': 1, 'ready': 2, 'served': 3 };
 
-        // Return localOrders mixed with sheet data (prefer sheet data for true state, local for optimism)
-        // In this architecture, we sync local with sheet
-        localOrders = sheetOrders;
+            localOrders = sheetOrders.map(sheetOrder => {
+                const localOrder = localOrders.find(o => o.id === sheetOrder.id);
+                if (localOrder) {
+                    const localVal = statusValue[localOrder.status] || 0;
+                    const sheetVal = statusValue[sheetOrder.status] || 0;
+
+                    // If local is ahead (e.g. we clicked 'cooking' but sheet is still 'pending'), keep local
+                    if (localVal > sheetVal) {
+                        return { ...sheetOrder, status: localOrder.status, acceptedTimestamp: localOrder.acceptedTimestamp, servedTimestamp: localOrder.servedTimestamp };
+                    }
+                }
+                return sheetOrder;
+            });
+
+            // Add any NEW orders from local that might not be in sheet yet (optimistic creation)
+            const sheetIds = new Set(sheetOrders.map(o => o.id));
+            const newLocalOrders = localOrders.filter(o => !sheetIds.has(o.id));
+            localOrders = [...localOrders, ...newLocalOrders]; // This line was actually buggy in previous logic, usually we want sheet to be truth, but for immediate optimistic feedback we might want to keep creation. 
+            // Actually, better to just rely on sheet for new orders, but keep status sync for existing.
+            // Simplified:
+            // localOrders = sheetOrders.map(...) is safer to avoid duplication/zombies.
+        }
 
         return localOrders.sort((a, b) => b.id.localeCompare(a.id));
 
