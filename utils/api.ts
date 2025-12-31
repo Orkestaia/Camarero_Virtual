@@ -92,8 +92,8 @@ export async function fetchMenuFromSheets(): Promise<MenuItem[]> {
                 available: (row['disponibilidad'] || 'TRUE').toUpperCase() === 'TRUE',
                 ingredients: (row['ingredientes'] || '').split(',').map(s => s.trim()),
                 image: row['imagen'] || row['foto'] || undefined,
-                isChefChoice: (row['chef'] || '').toLowerCase() === 'true' || (row['sugerencia'] || '').toLowerCase() === 'true',
-                isTop3: (row['top3'] || '').toLowerCase() === 'true'
+                isChefChoice: ['true', 'si', 'yes', '1'].includes((row['chef'] || row['sugerencia'] || '').toLowerCase()),
+                isTop3: ['true', 'si', 'yes', '1'].includes((row['top3'] || '').toLowerCase())
             };
         }).filter(item => item.name !== 'Desconocido');
 
