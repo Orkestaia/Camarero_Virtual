@@ -101,8 +101,8 @@ export async function fetchMenuFromSheets(): Promise<MenuItem[]> {
                 ingredients: (row['ingredientes'] || '').split(',').map(s => s.trim()),
                 image: row['imagen'] || row['foto'] || undefined,
                 // Check multiple possible column names for Chef/Top3
-                isChefChoice: isTrue(row['chef']) || isTrue(row['sugerencia']) || isTrue(row['sugerencias']) || isTrue(row['recomendado']),
-                isTop3: isTrue(row['top3']) || isTrue(row['top 3']) || isTrue(row['favorito']) || isTrue(row['popular'])
+                isChefChoice: isTrue(row['chef']) || isTrue(row['sugerencia']) || isTrue(row['sugerencias']) || isTrue(row['recomendado']) || isTrue(row['sugerencias del chef']),
+                isTop3: isTrue(row['top3']) || isTrue(row['top 3']) || isTrue(row['favorito']) || isTrue(row['popular']) || isTrue(row['mejores valorados por nuestros clientes'])
             };
         }).filter(item => item.name !== 'Desconocido');
 
