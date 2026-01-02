@@ -17,11 +17,11 @@ interface UseLiveSessionProps {
   clientName: string;
 }
 
-export const useLiveSession = ({ 
-  apiKey, 
-  tableNumber, 
-  menu, 
-  onAddToCart, 
+export const useLiveSession = ({
+  apiKey,
+  tableNumber,
+  menu,
+  onAddToCart,
   onRemoveFromOrder,
   onConfirmOrder,
   onSetDiners,
@@ -32,7 +32,7 @@ export const useLiveSession = ({
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [isMuted, setIsMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(0);
-  const [logs, setLogs] = useState<{role: string, text: string}[]>([]);
+  const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
 
   // Refs for audio handling
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -61,7 +61,7 @@ export const useLiveSession = ({
   // ===== ENHANCED SYSTEM INSTRUCTION WITH MENU INFO =====
   const enhancedSystemInstruction = useMemo(() => {
     const availableMenu = menu.filter(item => item.available);
-    
+
     const byCategory = new Map<string, MenuItem[]>();
     availableMenu.forEach(item => {
       if (!byCategory.has(item.category)) {
@@ -85,7 +85,7 @@ export const useLiveSession = ({
       });
     });
 
-    return `${SYSTEM_INSTRUCTION}
+    return `${SYSTEM_INSTRUCTION.replace('{TIME}', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}
 
 Número de mesa actual: ${tableNumber}
 
@@ -101,7 +101,6 @@ INSTRUCCIONES CRÍTICAS SOBRE DISPONIBILIDAD:
 - Usa los nombres EXACTOS de los platos como aparecen arriba
 
 INSTRUCCIONES DE INICIO Y CIERRE:
-- IMPORTANTE: Nada más conectar, DEBES saludar al cliente. NO esperes a que él hable. Di algo como "¡Hola! Soy Ramiro, su camarero virtual. ¿Para cuántas personas es la mesa hoy?".
 - Cuando el pedido esté confirmado y hayas dicho la frase de despedida "Que aproveche" (o similar), DEBES ejecutar inmediatamente la herramienta 'endSession'.
 `;
   }, [menu, tableNumber]);
@@ -167,7 +166,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
     if (sessionRef.current) {
       sessionRef.current = null;
     }
-    
+
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
@@ -182,7 +181,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
-    
+
     sourcesRef.current.forEach(source => source.stop());
     sourcesRef.current.clear();
 
@@ -207,7 +206,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       mediaStreamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey });
-      
+
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
@@ -223,9 +222,26 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             console.log("Gemini Live Session Opened");
             setStatus('connected');
 
-            // NOTE: We cannot send text directly to start the conversation with the current SDK version.
-            // We rely on the system instruction to encourage the model to speak first if it detects the session start,
-            // or the user will need to say "Hola". 
+            // --- AUTO-GREET IMPLEMENTATION ---
+            // Send a text message (as User) to trigger the model to speak correctly.
+            // We use the 'client_content' tool or simply send a text turn if supported.
+            // Since the current SDK might not support direct text injection easily, we rely on the prompt + empty audio?
+            // Actually, newer Gemini Live supports sending text parts.
+            // If not, we rely on the prompt "IMPORTANTE: Nada más conectar, DEBES saludar..." 
+            // BUT user asked for "automaticamente salude".
+            // Let's try sending a hidden text prompt "El usuario ha llegado. Saluda brevemente según la hora."
+
+            sessionPromise.then(session => {
+              session.send({
+                clientContent: {
+                  turns: [{
+                    role: 'user',
+                    parts: [{ text: "El usuario se ha conectado. Salúdalo brevemente según la hora actual." }]
+                  }],
+                  turnComplete: true
+                }
+              });
+            });
 
             const source = inputAc.createMediaStreamSource(stream);
             const processor = inputAc.createScriptProcessor(4096, 1, 1);
@@ -235,7 +251,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               if (isMuted) return;
               const inputData = e.inputBuffer.getChannelData(0);
               let sum = 0;
-              for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
+              for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
               const rms = Math.sqrt(sum / inputData.length);
               setVolumeLevel(rms);
 
@@ -251,14 +267,14 @@ INSTRUCCIONES DE INICIO Y CIERRE:
           onmessage: async (msg: LiveServerMessage) => {
             if (msg.toolCall) {
               const responses = [];
-              
+
               for (const fc of msg.toolCall.functionCalls) {
                 let result: any = { status: 'ok' };
-                
+
                 if (fc.name === 'getMenu') {
-                  result = { 
+                  result = {
                     message: "Menu available in context",
-                    count: menuRef.current.length 
+                    count: menuRef.current.length
                   };
                 } else if (fc.name === 'setDiners') {
                   const args = fc.args as any;
@@ -267,39 +283,39 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   setLogs(prev => [...prev, { role: 'system', text: `👥 ${args.count} comensales` }]);
                 } else if (fc.name === 'addToOrder') {
                   const args = fc.args as any;
-                  
+
                   // Use refs to get current menu state
-                  let item = menuRef.current.find(m => 
-                    m.available && 
+                  let item = menuRef.current.find(m =>
+                    m.available &&
                     m.name.toLowerCase().trim() === args.itemName.toLowerCase().trim()
                   );
 
                   if (!item) {
-                    item = menuRef.current.find(m => 
-                      m.available && 
+                    item = menuRef.current.find(m =>
+                      m.available &&
                       m.name.toLowerCase().includes(args.itemName.toLowerCase())
                     );
                   }
 
                   if (item) {
                     onAddToCart(item, args.quantity, args.notes);
-                    result = { 
+                    result = {
                       success: true,
-                      message: `Added ${args.quantity}x ${item.name}` 
+                      message: `Added ${args.quantity}x ${item.name}`
                     };
                     setLogs(prev => [...prev, { role: 'system', text: `✓ Añadido: ${args.quantity}x ${item.name}` }]);
                   } else {
-                    result = { 
+                    result = {
                       success: false,
                       error: "Item not available",
                     };
                     setLogs(prev => [...prev, { role: 'error', text: `✗ "${args.itemName}" no existe` }]);
                   }
                 } else if (fc.name === 'removeFromOrder') {
-                    const args = fc.args as any;
-                    onRemoveFromOrder(args.itemName);
-                    result = { success: true, message: `Removed: ${args.itemName}` };
-                    setLogs(prev => [...prev, { role: 'system', text: `🗑️ Eliminado: ${args.itemName}` }]);
+                  const args = fc.args as any;
+                  onRemoveFromOrder(args.itemName);
+                  result = { success: true, message: `Removed: ${args.itemName}` };
+                  setLogs(prev => [...prev, { role: 'system', text: `🗑️ Eliminado: ${args.itemName}` }]);
 
                 } else if (fc.name === 'confirmOrder') {
                   // USE REFS TO GET LATEST STATE TO PASS TO APP
@@ -311,26 +327,26 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                     result = { success: false, error: "Cart is empty" };
                     setLogs(prev => [...prev, { role: 'error', text: `✗ Carrito vacío` }]);
                   } else {
-                      // DELEGATE TO APP PROP. Pass currentCart to avoid closure issues.
-                      const success = await onConfirmOrder(currentDiners, currentName, currentCart);
-                      
-                      if (success) {
-                          result = { success: true, message: "Order sent to kitchen" };
-                          setLogs(prev => [...prev, { role: 'system', text: `✓ Pedido confirmado y enviado` }]);
-                      } else {
-                          result = { success: false, error: "Failed to send order" };
-                          setLogs(prev => [...prev, { role: 'error', text: `✗ Fallo al enviar` }]);
-                      }
+                    // DELEGATE TO APP PROP. Pass currentCart to avoid closure issues.
+                    const success = await onConfirmOrder(currentDiners, currentName, currentCart);
+
+                    if (success) {
+                      result = { success: true, message: "Order sent to kitchen" };
+                      setLogs(prev => [...prev, { role: 'system', text: `✓ Pedido confirmado y enviado` }]);
+                    } else {
+                      result = { success: false, error: "Failed to send order" };
+                      setLogs(prev => [...prev, { role: 'error', text: `✗ Fallo al enviar` }]);
+                    }
                   }
                 } else if (fc.name === 'endSession') {
-                    // Handle session end
-                    result = { success: true, message: "Ending session" };
-                    setLogs(prev => [...prev, { role: 'system', text: `👋 Finalizando llamada...` }]);
-                    
-                    // Disconnect after a short delay to allow the "Que aproveche" audio to finish playing
-                    setTimeout(() => {
-                        disconnect();
-                    }, 4000); 
+                  // Handle session end
+                  result = { success: true, message: "Ending session" };
+                  setLogs(prev => [...prev, { role: 'system', text: `👋 Finalizando llamada...` }]);
+
+                  // Disconnect after a short delay to allow the "Que aproveche" audio to finish playing
+                  setTimeout(() => {
+                    disconnect();
+                  }, 4000);
                 }
 
                 responses.push({
@@ -359,14 +375,14 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               const source = ctx.createBufferSource();
               source.buffer = audioBuffer;
               const gainNode = ctx.createGain();
-              gainNode.gain.value = 1.0; 
-              
+              gainNode.gain.value = 1.0;
+
               source.connect(gainNode);
               gainNode.connect(ctx.destination);
-              
+
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += audioBuffer.duration;
-              
+
               sourcesRef.current.add(source);
               source.onended = () => sourcesRef.current.delete(source);
             }

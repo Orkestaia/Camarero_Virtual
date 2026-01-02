@@ -185,145 +185,151 @@ export async function fetchOrdersFromSheets(): Promise<ConfirmedOrder[]> {
             // Status hierarchy: pending (0) < cooking (1) < ready (2) < served (3)
             const statusValue = { 'pending': 0, 'cooking': 1, 'ready': 2, 'served': 3 };
 
-            localOrders = sheetOrders.map(sheetOrder => {
+            // Create a map of sheet orders for fast lookup
+            const sheetMap = new Map(sheetOrders.map(o => [o.id, o]));
+
+            // 1. Keep local orders that are NOT in sheet yet (Optimistic creation)
+            const newLocalOrders = localOrders.filter(o => !sheetMap.has(o.id));
+
+            // 2. Update existing orders, but respect local status if ahead
+            const mergedOrders = sheetOrders.map(sheetOrder => {
                 const localOrder = localOrders.find(o => o.id === sheetOrder.id);
                 if (localOrder) {
                     const localVal = statusValue[localOrder.status] || 0;
                     const sheetVal = statusValue[sheetOrder.status] || 0;
 
-                    // If local is ahead (e.g. we clicked 'cooking' but sheet is still 'pending'), keep local
+                    // If local is ahead (e.g. we clicked 'cooking' but sheet is still 'pending'), keep local status
                     if (localVal > sheetVal) {
-                        return { ...sheetOrder, status: localOrder.status, acceptedTimestamp: localOrder.acceptedTimestamp, servedTimestamp: localOrder.servedTimestamp };
+                        return {
+                            ...sheetOrder,
+                            status: localOrder.status,
+                            acceptedTimestamp: localOrder.acceptedTimestamp || sheetOrder.acceptedTimestamp,
+                            servedTimestamp: localOrder.servedTimestamp || sheetOrder.servedTimestamp
+                        };
                     }
                 }
                 return sheetOrder;
             });
 
-            // Add any NEW orders from local that might not be in sheet yet (optimistic creation)
-            const sheetIds = new Set(sheetOrders.map(o => o.id));
-            const newLocalOrders = localOrders.filter(o => !sheetIds.has(o.id));
-            localOrders = [...localOrders, ...newLocalOrders]; // This line was actually buggy in previous logic, usually we want sheet to be truth, but for immediate optimistic feedback we might want to keep creation. 
-            // Actually, better to just rely on sheet for new orders, but keep status sync for existing.
-            // Simplified:
-            // localOrders = sheetOrders.map(...) is safer to avoid duplication/zombies.
+            // Combine
+            localOrders = [...newLocalOrders, ...mergedOrders];
+
+            return localOrders.sort((a, b) => b.id.localeCompare(a.id));
+
+        } catch (error) {
+            console.error("Error loading orders:", error);
+            return localOrders;
         }
-
-        return localOrders.sort((a, b) => b.id.localeCompare(a.id));
-
-    } catch (error) {
-        console.error("Error loading orders:", error);
-        return localOrders;
     }
-}
 
 // --- N8N WRITING FUNCTIONS ---
 
 async function sendToN8N(payload: any): Promise<boolean> {
-    try {
-        // N8N usually accepts JSON
-        await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-        return true;
-    } catch (e) {
-        console.error("Error calling N8N:", e);
-        // Fallback: Try with no-cors if CORS is an issue (common with direct browser calls)
         try {
+            // N8N usually accepts JSON
             await fetch(N8N_WEBHOOK_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify(payload)
             });
             return true;
-        } catch (e2) {
-            return false;
+        } catch (e) {
+            console.error("Error calling N8N:", e);
+            // Fallback: Try with no-cors if CORS is an issue (common with direct browser calls)
+            try {
+                await fetch(N8N_WEBHOOK_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+                return true;
+            } catch (e2) {
+                return false;
+            }
         }
     }
-}
 
-export async function sendOrderToSheets(order: ConfirmedOrder): Promise<boolean> {
-    // 1. Update local state immediately (Optimistic UI)
-    localOrders.unshift(order);
+    export async function sendOrderToSheets(order: ConfirmedOrder): Promise<boolean> {
+        // 1. Update local state immediately (Optimistic UI)
+        localOrders.unshift(order);
 
-    // 2. Prepare payload matching the N8N Workflow expectation
-    const pedidoString = order.items.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', ');
-    const notesString = order.items.map(i => i.notes).filter(Boolean).join('. ');
-    const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        // 2. Prepare payload matching the N8N Workflow expectation
+        const pedidoString = order.items.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', ');
+        const notesString = order.items.map(i => i.notes).filter(Boolean).join('. ');
+        const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-    const payload = {
-        Numero_pedido: order.id,
-        numero_mesa: order.tableNumber,
-        Pedido: pedidoString,
-        hora_pedido: timeStr,
-        hora_aceptado: "",
-        hora_entrega: "",
-        estado: 'pendiente',
-        notas_especiales: notesString,
-        comensales: order.diners.toString(),
-        total_pedido: order.totalPrice.toFixed(2)
-    };
+        const payload = {
+            Numero_pedido: order.id,
+            numero_mesa: order.tableNumber,
+            Pedido: pedidoString,
+            hora_pedido: timeStr,
+            hora_aceptado: "",
+            hora_entrega: "",
+            estado: 'pendiente',
+            notas_especiales: notesString,
+            comensales: order.diners.toString(),
+            total_pedido: order.totalPrice.toFixed(2)
+        };
 
-    // 3. Send to N8N
-    return sendToN8N(payload);
-}
-
-export async function updateOrderStatus(orderId: string, status: 'cooking' | 'ready' | 'served'): Promise<boolean> {
-    // 1. Find the order data to resend (since N8N appends, we need the full row)
-    const orderIndex = localOrders.findIndex(o => o.id === orderId);
-    if (orderIndex === -1) return false;
-
-    // Update local state
-    const order = localOrders[orderIndex];
-    order.status = status;
-
-    // 2. Prepare Payload
-    const pedidoString = order.items.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', ');
-    const notesString = order.items.map(i => i.notes).filter(Boolean).join('. ');
-    const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-
-    // Determine Status string and Timestamps
-    let sheetStatus: string = status;
-
-    // Update local timestamps based on status change
-    if (status === 'cooking') {
-        sheetStatus = 'aceptado';
-        order.acceptedTimestamp = timeStr; // Store accepted time
-    } else if (status === 'ready' || status === 'served') {
-        sheetStatus = 'entregado';
-        order.servedTimestamp = timeStr; // Store served time
+        // 3. Send to N8N
+        return sendToN8N(payload);
     }
 
-    // CRITICAL: Ensure we send existing acceptedTimestamp if it exists, so we don't wipe it out in the DB
-    const finalHoraAceptado = order.acceptedTimestamp || "";
-    const finalHoraEntrega = order.servedTimestamp || "";
+    export async function updateOrderStatus(orderId: string, status: 'cooking' | 'ready' | 'served'): Promise<boolean> {
+        // 1. Find the order data to resend (since N8N appends, we need the full row)
+        const orderIndex = localOrders.findIndex(o => o.id === orderId);
+        if (orderIndex === -1) return false;
 
-    const payload = {
-        Numero_pedido: order.id,
-        numero_mesa: order.tableNumber,
-        Pedido: pedidoString,
-        hora_pedido: new Date(order.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        hora_aceptado: finalHoraAceptado, // Send preserved accepted time
-        hora_entrega: finalHoraEntrega,   // Send new or preserved delivered time
-        estado: sheetStatus,
-        notas_especiales: notesString,
-        comensales: order.diners.toString(),
-        total_pedido: order.totalPrice.toFixed(2)
+        // Update local state
+        const order = localOrders[orderIndex];
+        order.status = status;
+
+        // 2. Prepare Payload
+        const pedidoString = order.items.map(i => `${i.quantity}x ${i.menuItem.name}`).join(', ');
+        const notesString = order.items.map(i => i.notes).filter(Boolean).join('. ');
+        const timeStr = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+        // Determine Status string and Timestamps
+        let sheetStatus: string = status;
+
+        // Update local timestamps based on status change
+        if (status === 'cooking') {
+            sheetStatus = 'aceptado';
+            order.acceptedTimestamp = timeStr; // Store accepted time
+        } else if (status === 'ready' || status === 'served') {
+            sheetStatus = 'entregado';
+            order.servedTimestamp = timeStr; // Store served time
+        }
+
+        // CRITICAL: Ensure we send existing acceptedTimestamp if it exists, so we don't wipe it out in the DB
+        const finalHoraAceptado = order.acceptedTimestamp || "";
+        const finalHoraEntrega = order.servedTimestamp || "";
+
+        const payload = {
+            Numero_pedido: order.id,
+            numero_mesa: order.tableNumber,
+            Pedido: pedidoString,
+            hora_pedido: new Date(order.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            hora_aceptado: finalHoraAceptado, // Send preserved accepted time
+            hora_entrega: finalHoraEntrega,   // Send new or preserved delivered time
+            estado: sheetStatus,
+            notas_especiales: notesString,
+            comensales: order.diners.toString(),
+            total_pedido: order.totalPrice.toFixed(2)
+        };
+
+        // 3. Send to N8N
+        return sendToN8N(payload);
+    }
+
+    // Aliases
+    export const fetchMenuFromWebhook = fetchMenuFromSheets;
+    export const fetchOrdersFromWebhook = fetchOrdersFromSheets;
+    export const sendOrderToWebhook = async (order: ConfirmedOrder) => {
+        const success = await sendOrderToSheets(order);
+        return { success, message: success ? 'Pedido enviado' : 'Error' };
     };
-
-    // 3. Send to N8N
-    return sendToN8N(payload);
-}
-
-// Aliases
-export const fetchMenuFromWebhook = fetchMenuFromSheets;
-export const fetchOrdersFromWebhook = fetchOrdersFromSheets;
-export const sendOrderToWebhook = async (order: ConfirmedOrder) => {
-    const success = await sendOrderToSheets(order);
-    return { success, message: success ? 'Pedido enviado' : 'Error' };
-};
-export const updateOrderInWebhook = updateOrderStatus;
+    export const updateOrderInWebhook = updateOrderStatus;

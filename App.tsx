@@ -485,21 +485,7 @@ function App() {
         <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
       </div>
 
-      {/* RE-INSERTING ORDER SUMMARY VISIBLY AT BOTTOM OF LIST */}
-      <div className="w-full px-4 pb-24 max-w-md mx-auto relative z-10">
-        <OrderSummary
-          items={cartItems}
-          total={totalPrice}
-          tableNumber={tableNumber}
-          onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
-          onRemoveItem={handleRemoveItem}
-          onUpdateQuantity={handleUpdateQuantity}
-          isSending={isSending}
-        />
-        <div className="mt-8">
-          <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
-        </div>
-      </div>
+
     </>
   );
 }
