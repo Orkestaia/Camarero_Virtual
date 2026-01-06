@@ -36,9 +36,19 @@ function App() {
   useEffect(() => {
     const loadMenu = async () => {
       setMenuLoading(true);
-      const items = await fetchMenuFromWebhook();
-      setMenu(items);
-      setMenuLoading(false);
+      try {
+        const items = await fetchMenuFromWebhook();
+        if (items && items.length > 0) {
+          setMenu(items);
+        } else {
+          console.warn("Menu is empty or failed to load");
+          // Optional: Set a fallback menu or error state if needed
+        }
+      } catch (error) {
+        console.error("Failed to load menu:", error);
+      } finally {
+        setMenuLoading(false);
+      }
     };
     loadMenu();
   }, []);
@@ -46,8 +56,12 @@ function App() {
   // 2. Poll for Orders (Real-time sync)
   useEffect(() => {
     const loadOrders = async () => {
-      const orders = await fetchOrdersFromWebhook();
-      setConfirmedOrders(orders);
+      try {
+        const orders = await fetchOrdersFromWebhook();
+        if (orders) setConfirmedOrders(orders);
+      } catch (e) {
+        console.error("Error polling orders:", e);
+      }
     };
 
     loadOrders();

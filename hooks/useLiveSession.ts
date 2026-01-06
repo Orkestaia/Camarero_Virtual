@@ -224,19 +224,12 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
             // --- AUTO-GREET IMPLEMENTATION ---
             // Send a text message (as User) to trigger the model to speak correctly.
-            // We use the 'client_content' tool or simply send a text turn if supported.
-            // Since the current SDK might not support direct text injection easily, we rely on the prompt + empty audio?
-            // Actually, newer Gemini Live supports sending text parts.
-            // If not, we rely on the prompt "IMPORTANTE: Nada más conectar, DEBES saludar..." 
-            // BUT user asked for "automaticamente salude".
-            // Let's try sending a hidden text prompt "El usuario ha llegado. Saluda brevemente según la hora."
-
             sessionPromise.then(session => {
               session.send({
                 clientContent: {
                   turns: [{
                     role: 'user',
-                    parts: [{ text: "El usuario se ha conectado. Salúdalo brevemente según la hora actual." }]
+                    parts: [{ text: "Me acabo de conectar. Salúdame inmediatamente como Patxi, el camarero del restaurante Garrote, y pregúntame cuántos somos. (Habla en español de España estándar)" }]
                   }],
                   turnComplete: true
                 }
@@ -284,16 +277,28 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                 } else if (fc.name === 'addToOrder') {
                   const args = fc.args as any;
 
-                  // Use refs to get current menu state
+                  const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                  const targetName = normalize(args.itemName);
+
+                  // 1. Precise Match (Normalized)
                   let item = menuRef.current.find(m =>
                     m.available &&
-                    m.name.toLowerCase().trim() === args.itemName.toLowerCase().trim()
+                    normalize(m.name) === targetName
                   );
 
+                  // 2. Fuzzy Match (Includes)
                   if (!item) {
                     item = menuRef.current.find(m =>
                       m.available &&
-                      m.name.toLowerCase().includes(args.itemName.toLowerCase())
+                      normalize(m.name).includes(targetName)
+                    );
+                  }
+
+                  // 3. Reverse Fuzzy (Target includes Item name - handle "Rabas de la abuela" when item is "Rabas")
+                  if (!item) {
+                    item = menuRef.current.find(m =>
+                      m.available &&
+                      targetName.includes(normalize(m.name))
                     );
                   }
 
@@ -307,9 +312,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   } else {
                     result = {
                       success: false,
-                      error: "Item not available",
+                      error: "Item not found in menu",
                     };
-                    setLogs(prev => [...prev, { role: 'error', text: `✗ "${args.itemName}" no existe` }]);
+                    setLogs(prev => [...prev, { role: 'error', text: `✗ No encontré: "${args.itemName}"` }]);
                   }
                 } else if (fc.name === 'removeFromOrder') {
                   const args = fc.args as any;
