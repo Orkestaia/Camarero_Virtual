@@ -225,18 +225,22 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             // --- AUTO-GREET IMPLEMENTATION ---
             // Send a hidden "system" direction disguised as a user message to force the model to start.
             // DELAY EDITED: Added 1000ms delay to ensure connection is fully established/ready before receiving trigger.
+            // DELAY EDITED: Added 1000ms delay to ensure connection is fully established/ready before receiving trigger.
             setTimeout(() => {
-              sessionPromise.then(session => {
-                session.send({
-                  clientContent: {
-                    turns: [{
-                      role: 'user',
-                      parts: [{ text: "SYSTEM_INSTRUCTION: El usuario se acaba de conectar. Saluda TÚ AHORA MISMO. Di exactamente: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
-                    }],
-                    turnComplete: true
-                  }
+              if (sessionRef.current) {
+                // Use sessionRef.current to avoid "used before declaration" TS error
+                sessionRef.current.then((session: any) => {
+                  session.send({
+                    clientContent: {
+                      turns: [{
+                        role: 'user',
+                        parts: [{ text: "SYSTEM_INSTRUCTION: El usuario se acaba de conectar. Saluda TÚ AHORA MISMO. Di exactamente: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
+                      }],
+                      turnComplete: true
+                    }
+                  });
                 });
-              });
+              }
             }, 1000);
 
             const source = inputAc.createMediaStreamSource(stream);
