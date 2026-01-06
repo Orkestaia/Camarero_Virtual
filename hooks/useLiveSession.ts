@@ -223,13 +223,13 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             setStatus('connected');
 
             // --- AUTO-GREET IMPLEMENTATION ---
-            // Send a text message (as User) to trigger the model to speak correctly.
+            // Send a hidden "system" direction disguised as a user message to force the model to start.
             sessionPromise.then(session => {
               session.send({
                 clientContent: {
                   turns: [{
                     role: 'user',
-                    parts: [{ text: "Me acabo de conectar. Salúdame inmediatamente como Patxi, el camarero del restaurante Garrote, y pregúntame cuántos somos. (Habla en español de España estándar)" }]
+                    parts: [{ text: "SYSTEM_TRIGGER: El usuario acaba de entrar por la puerta. INICIA LA CONVERSACIÓN TÚ AHORA MISMO. Di: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
                   }],
                   turnComplete: true
                 }
@@ -294,12 +294,24 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                     );
                   }
 
-                  // 3. Reverse Fuzzy (Target includes Item name - handle "Rabas de la abuela" when item is "Rabas")
+                  // 3. Reverse Fuzzy (Target includes Item name)
                   if (!item) {
                     item = menuRef.current.find(m =>
                       m.available &&
                       targetName.includes(normalize(m.name))
                     );
+                  }
+
+                  // 4. Word-based Matching (Heuristic for Plurals/Parts)
+                  // e.g. "Gildas" (target) vs "Gilda esférica" (item)
+                  if (!item) {
+                    const targetWords = targetName.split(' ').filter(w => w.length > 2);
+                    item = menuRef.current.find(m => {
+                      if (!m.available) return false;
+                      const nameWords = normalize(m.name).split(' ');
+                      // Match if ANY significant word from target exists in item name
+                      return targetWords.some(w => nameWords.includes(w) || nameWords.some(nw => nw.startsWith(w) || w.startsWith(nw)));
+                    });
                   }
 
                   if (item) {
