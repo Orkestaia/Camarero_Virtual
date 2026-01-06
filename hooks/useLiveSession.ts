@@ -224,8 +224,8 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
             // --- AUTO-GREET IMPLEMENTATION ---
             // Send a hidden "system" direction disguised as a user message to force the model to start.
-            // DELAY EDITED: Added 1000ms delay to ensure connection is fully established/ready before receiving trigger.
-            // DELAY EDITED: Added 1000ms delay to ensure connection is fully established/ready before receiving trigger.
+            // DELAY EDITED: Added 3000ms delay to ensure connection is fully established/ready before receiving trigger.
+            // User requested increase from 1s to 3s to avoid race conditions.
             setTimeout(() => {
               if (sessionRef.current) {
                 // Use sessionRef.current to avoid "used before declaration" TS error
@@ -241,7 +241,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   });
                 });
               }
-            }, 1000);
+            }, 3000);
 
             const source = inputAc.createMediaStreamSource(stream);
             const processor = inputAc.createScriptProcessor(4096, 1, 1);
