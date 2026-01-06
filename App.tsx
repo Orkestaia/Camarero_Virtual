@@ -218,6 +218,40 @@ function App() {
     clientName
   });
 
+  // --- GREETING FALLBACK LOGIC ---
+  useEffect(() => {
+    let greetingTimeout: NodeJS.Timeout;
+
+    if (status === 'connected') {
+      // Check if Patxi has already spoken (assistant logs)
+      const hasSpoken = logs.some(l => l.role === 'assistant' || l.role === 'system');
+
+      if (!hasSpoken) {
+        greetingTimeout = setTimeout(() => {
+          // Final check before manual injection
+          const stillSilent = !logs.some(l => l.role === 'assistant');
+          if (stillSilent) {
+            const greeting = "¡Hola! Bienvenidos al Restaurante Garrote. ¿Mesa para cuántos?";
+
+            // 1. Speak it using Browser TTS (Fallback)
+            if ('speechSynthesis' in window) {
+              const utterance = new SpeechSynthesisUtterance(greeting);
+              utterance.lang = 'es-ES';
+              utterance.rate = 1.0;
+              window.speechSynthesis.speak(utterance);
+            }
+
+            // 2. Note: We don't manually add to logs here if useLiveSession handles it, 
+            // but since useLiveSession relies on the model, we add a "System" log to show it happened.
+            // Actually, we'll just let the UI reflect that Patxi is "speaking" the welcome.
+          }
+        }, 4000); // Wait 4s for AI, then fallback
+      }
+    }
+
+    return () => clearTimeout(greetingTimeout);
+  }, [status, logs]);
+
   const totalPrice = cartItems.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
 
   // --- RENDER ---

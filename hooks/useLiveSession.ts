@@ -226,15 +226,15 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             // Send a hidden "system" direction disguised as a user message to force the model to start.
             // DELAY EDITED: Added 3000ms delay to ensure connection is fully established/ready before receiving trigger.
             // User requested increase from 1s to 3s to avoid race conditions.
+            // Simplified trigger to "Hola" to behave like a natural user start.
             setTimeout(() => {
               if (sessionRef.current) {
-                // Use sessionRef.current to avoid "used before declaration" TS error
                 sessionRef.current.then((session: any) => {
                   session.send({
                     clientContent: {
                       turns: [{
                         role: 'user',
-                        parts: [{ text: "SYSTEM_INSTRUCTION: El usuario se acaba de conectar. Saluda TÚ AHORA MISMO. Di exactamente: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
+                        parts: [{ text: "Hola" }]
                       }],
                       turnComplete: true
                     }
