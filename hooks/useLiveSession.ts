@@ -256,9 +256,11 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               setVolumeLevel(rms);
 
               const pcmBlob = createPcmBlob(inputData);
-              sessionPromise.then(session => {
-                session.sendRealtimeInput({ media: pcmBlob });
-              });
+              if (sessionRef.current) {
+                sessionRef.current.then((session: any) => {
+                  session.sendRealtimeInput({ media: pcmBlob });
+                });
+              }
             };
 
             source.connect(processor);
@@ -380,9 +382,11 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                 });
               }
 
-              sessionPromise.then(session => {
-                session.sendToolResponse({ functionResponses: responses });
-              });
+              if (sessionRef.current) {
+                sessionRef.current.then((session: any) => {
+                  session.sendToolResponse({ functionResponses: responses });
+                });
+              }
             }
 
             const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;

@@ -58,7 +58,7 @@ OBJETIVO PRINCIPAL: Atender a los clientes con rapidez, educación y cero fricci
 ═══════════════════════════════════════════════════════════════════════════════
 
 - **addToOrder(itemName, quantity)**:
-  - El `itemName` DEBE SER EXACTAMENTE el string que aparece en el menú proporcionado.
+  - El \`itemName\` DEBE SER EXACTAMENTE el string que aparece en el menú proporcionado.
   - No inventes nombres. Usa el del menú.
 
 - **setDiners(count)**:
