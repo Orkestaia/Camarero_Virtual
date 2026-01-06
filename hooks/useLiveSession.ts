@@ -224,17 +224,20 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
             // --- AUTO-GREET IMPLEMENTATION ---
             // Send a hidden "system" direction disguised as a user message to force the model to start.
-            sessionPromise.then(session => {
-              session.send({
-                clientContent: {
-                  turns: [{
-                    role: 'user',
-                    parts: [{ text: "SYSTEM_TRIGGER: El usuario acaba de entrar por la puerta. INICIA LA CONVERSACIÓN TÚ AHORA MISMO. Di: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
-                  }],
-                  turnComplete: true
-                }
+            // DELAY EDITED: Added 1000ms delay to ensure connection is fully established/ready before receiving trigger.
+            setTimeout(() => {
+              sessionPromise.then(session => {
+                session.send({
+                  clientContent: {
+                    turns: [{
+                      role: 'user',
+                      parts: [{ text: "SYSTEM_INSTRUCTION: El usuario se acaba de conectar. Saluda TÚ AHORA MISMO. Di exactamente: '¡Hola! Bienvenidos al Garrote. ¿Mesa para cuántos?'." }]
+                    }],
+                    turnComplete: true
+                  }
+                });
               });
-            });
+            }, 1000);
 
             const source = inputAc.createMediaStreamSource(stream);
             const processor = inputAc.createScriptProcessor(4096, 1, 1);
