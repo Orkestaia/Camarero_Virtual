@@ -216,28 +216,50 @@ export const useLiveSession = ({
 
             // TOOL EXECUTION
             if (msg.toolCall) {
+              console.log("🛠️ Tool Call Received:", JSON.stringify(msg.toolCall, null, 2));
+
               msg.toolCall.functionCalls.forEach((fc: any) => {
                 const args = fc.args;
                 let result: { success: boolean; error?: string } = { success: true };
 
+                console.log(`🔨 Executing: ${fc.name}`, args);
+
                 if (fc.name === 'setDiners') {
                   onSetDiners(args.count);
                 } else if (fc.name === 'addToOrder') {
-                  const item = menu.find(m => m.name.toLowerCase() === args.itemName.toLowerCase());
+                  // Clean args
+                  const searchName = args.itemName.trim().toLowerCase();
+
+                  // 1. Exact Match
+                  let item = menu.find(m => m.name.toLowerCase() === searchName);
+
+                  // 2. Fuzzy / Partial Match
+                  if (!item) {
+                    item = menu.find(m => m.name.toLowerCase().includes(searchName) || searchName.includes(m.name.toLowerCase()));
+                  }
+
+                  // 3. Fallback: Check synonyms or simplified names (e.g. "Gildas" -> "Gilda")
+                  if (!item) {
+                    // Remove trailing 's' for plural
+                    const singular = searchName.replace(/s$/, '');
+                    item = menu.find(m => m.name.toLowerCase().includes(singular));
+                  }
+
                   if (item) {
+                    console.log("✅ Item Found & Added:", item.name);
                     onAddToCart(item, args.quantity, args.notes);
                   } else {
-                    // Try fuzzy match or fallback
-                    const fallback = menu.find(m => m.name.toLowerCase().includes(args.itemName.toLowerCase()));
-                    if (fallback) {
-                      onAddToCart(fallback, args.quantity, args.notes);
-                    } else {
-                      result = { success: false, error: 'Item not found' };
-                    }
+                    console.error("❌ Item NOT Found in Menu:", searchName);
+                    result = { success: false, error: 'Item not found in menu. Please ask user to clarify.' };
                   }
                 } else if (fc.name === 'confirmOrder') {
+                  console.log("✅ Confirming Order...");
                   onConfirmOrder(dinersCount, clientName).then(success => {
-                    // Can handle post-confirmation logic here
+                    if (success) {
+                      console.log("🚀 Order Sent to Webhook/Sheet");
+                    } else {
+                      console.error("❌ Failed to send order");
+                    }
                   });
                 }
 

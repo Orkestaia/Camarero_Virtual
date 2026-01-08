@@ -477,39 +477,31 @@ function App() {
         <div className="h-24"></div>
       </main>
 
-      {/* ORDER SUMMARY FIXED BOTTOM (Only if items exist) */}
-      {
-        cartItems.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-stone-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-50">
-            <button
-              onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-              className="w-full bg-[#BC6C4F] text-white py-4 rounded-xl font-bold uppercase tracking-widest shadow-lg flex items-center justify-center gap-2"
-            >
-              <span>Ver Pedido ({cartItems.length})</span>
-              <span className="bg-white/20 px-2 py-0.5 rounded text-sm">{totalPrice.toFixed(2)}€</span>
-            </button>
-            {/* Note: In a real mobile app we might want a modal for the summary. For now, scrolling down to the OrderSummary component which is rendered in "Selection" in original code? 
-                 Wait, OrderSummary was in the sidebar. I need to render it somewhere. 
-                 I'll add it to the bottom of the main list or a modal. 
-                 For simplicity, let's keep it embedded at the bottom of the main view but visible.
-              */}
+      {/* ORDER SUMMARY SHEET */}
+      {cartItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50">
+          {/* Summary Content */}
+          <div className="bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-stone-100 max-h-[80vh] overflow-y-auto p-6 pb-8">
+            <div className="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mb-6"></div>
+            <OrderSummary
+              items={cartItems}
+              total={totalPrice}
+              tableNumber={tableNumber}
+              onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
+              onRemoveItem={handleRemoveItem}
+              onUpdateQuantity={handleUpdateQuantity}
+              isSending={isSending}
+            />
           </div>
-        )
-      }
+        </div>
+      )}
 
-      <div className="hidden">
-        {/* Hack to keep OrderSummary logic alive if needed, or re-implement below */}
-        <OrderSummary
-          items={cartItems}
-          total={totalPrice}
-          tableNumber={tableNumber}
-          onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
-          onRemoveItem={handleRemoveItem}
-          onUpdateQuantity={handleUpdateQuantity}
-          isSending={isSending}
-        />
-        <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
-      </div>
+      {/* CONFIRMED ORDERS STATUS */}
+      {confirmedOrders.length > 0 && (
+        <div className="fixed top-20 right-4 z-40">
+          <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
+        </div>
+      )}
 
 
     </>
