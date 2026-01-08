@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLiveSession } from './hooks/useLiveSession';
 import { MenuItem, OrderItem, ConfirmedOrder } from './types';
 import Visualizer from './components/Visualizer';
@@ -82,7 +82,7 @@ function App() {
 
   // --- HANDLERS ---
 
-  const handleAddToCart = (item: MenuItem, quantity: number, notes?: string) => {
+  const handleAddToCart = useCallback((item: MenuItem, quantity: number, notes?: string) => {
     setCartItems(prev => {
       const newNotes = (notes || '').trim().toLowerCase();
       const existingIndex = prev.findIndex(i =>
@@ -108,13 +108,13 @@ function App() {
         return [...prev, newItem];
       }
     });
-  };
+  }, []);
 
-  const handleRemoveItem = (itemId: string) => {
+  const handleRemoveItem = useCallback((itemId: string) => {
     setCartItems(prev => prev.filter(item => item.id !== itemId));
-  };
+  }, []);
 
-  const handleRemoveFromOrder = (itemName: string) => {
+  const handleRemoveFromOrder = useCallback((itemName: string) => {
     setCartItems(prev => {
       const target = prev.find(i => i.menuItem.name.toLowerCase().includes(itemName.toLowerCase()));
       if (target) {
@@ -122,9 +122,9 @@ function App() {
       }
       return prev;
     });
-  };
+  }, []);
 
-  const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+  const handleUpdateQuantity = useCallback((itemId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
       handleRemoveItem(itemId);
       return;
@@ -134,14 +134,14 @@ function App() {
         ? { ...item, quantity: newQuantity }
         : item
     ));
-  };
+  }, [handleRemoveItem]);
 
-  const handleSetDiners = (count: number, name?: string) => {
+  const handleSetDiners = useCallback((count: number, name?: string) => {
     setDinersCount(count);
     if (name) setClientName(name);
-  };
+  }, []);
 
-  const handleConfirmOrder = async (diners: number, clientNameParam: string, itemsOverride?: OrderItem[]): Promise<boolean> => {
+  const handleConfirmOrder = useCallback(async (diners: number, clientNameParam: string, itemsOverride?: OrderItem[]): Promise<boolean> => {
     const itemsToConfirm = itemsOverride || cartItemsRef.current || cartItems;
 
     if (!itemsToConfirm || itemsToConfirm.length === 0) {
@@ -184,7 +184,7 @@ function App() {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [tableNumber, isSending]);
 
   const handleKitchenStatusUpdate = async (orderId: string, newStatus: 'cooking' | 'ready') => {
     const orderToUpdate = confirmedOrders.find(o => o.id === orderId);

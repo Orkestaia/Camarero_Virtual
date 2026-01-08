@@ -189,32 +189,30 @@ INSTRUCCIONES DE INICIO Y CIERRE:
   }, []);
 
   const connect = useCallback(async () => {
-    alert("Iniciando conexión..."); // DEBUG START
     if (!apiKey) {
-      const msg = "Error: API Key de Gemini no encontrada. Revisa las variables de entorno.";
-      console.error(msg);
-      alert(msg);
+      console.error("Gemini API Key is missing.");
       return;
     }
-    alert("API Key encontrada: " + apiKey.substring(0, 5) + "..."); // DEBUG KEY
 
     try {
       setStatus('connecting');
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      // Consistent sample rate for both input/output to minimize context conflicts
-      const ac = new AudioContextClass({ sampleRate: 16000 });
+      const ac = new AudioContextClass({ sampleRate: 24000 });
+      const inputAc = new AudioContextClass({ sampleRate: 16000 });
+
+      // Crucial for mobile/modern browsers
+      await ac.resume();
+      await inputAc.resume();
+
       audioContextRef.current = ac;
 
-      console.log("Requesting mic stream...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
-      console.log("Mic stream obtained");
 
       const ai = new GoogleGenAI({ apiKey });
 
       const speak = async (text: string) => {
-        console.log("Patxi speaking (ElevenLabs):", text);
         try {
           const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}`, {
             method: 'POST',
@@ -229,10 +227,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             })
           });
 
-          if (!response.ok) {
-            console.error("ElevenLabs response not OK");
-            return;
-          }
+          if (!response.ok) return;
 
           const blob = await response.blob();
           const buffer = await blob.arrayBuffer();
@@ -247,7 +242,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
           source.start(0);
           source.onended = () => sourcesRef.current.delete(source);
         } catch (e) {
-          console.error("ElevenLabs speak error:", e);
+          console.error("ElevenLabs error:", e);
         }
       };
 
@@ -255,7 +250,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO], // Reverting to basic AUDIO to test stability
+          responseModalities: [Modality.AUDIO, Modality.TEXT],
           systemInstruction: enhancedSystemInstruction,
           tools: tools,
           speechConfig: {
@@ -264,12 +259,10 @@ INSTRUCCIONES DE INICIO Y CIERRE:
         },
         callbacks: {
           onopen: () => {
-            alert("¡Sesión abierta con Gemini!"); // DEBUG OPEN
             setStatus('connected');
 
             // --- AUTO-GREET IMPLEMENTATION ---
             setTimeout(() => {
-              alert("Enviando saludo automático 'Hola'..."); // DEBUG GREET
               if (sessionRef.current) {
                 sessionRef.current.then((session: any) => {
                   session.send({
@@ -285,9 +278,8 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
             }, 2000);
 
-            alert("Iniciando procesamiento de audio..."); // DEBUG PROCESSING
-            const source = ac.createMediaStreamSource(stream);
-            const processor = ac.createScriptProcessor(4096, 1, 1);
+            const source = inputAc.createMediaStreamSource(stream);
+            const processor = inputAc.createScriptProcessor(4096, 1, 1);
             inputProcessorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
@@ -307,23 +299,18 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             };
 
             source.connect(processor);
-            processor.connect(ac.destination);
+            processor.connect(inputAc.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
-            console.log("Received LiveServerMessage:", msg);
-            alert("Mensaje recibido de Gemini: " + JSON.stringify(msg).substring(0, 100)); // DEBUG MESSAGE
-
             if (msg.serverContent?.modelTurn) {
               const text = msg.serverContent.modelTurn.parts?.find(p => p.text)?.text;
               if (text) {
-                console.log("Transcript extracted:", text);
                 setLogs(prev => [...prev, { role: 'assistant', text }]);
                 speak(text);
               }
             }
 
             if (msg.toolCall) {
-              alert("Gemini quiere usar una herramienta: " + msg.toolCall.functionCalls[0].name); // DEBUG TOOL
               const responses = [];
 
               for (const fc of msg.toolCall.functionCalls) {
@@ -445,14 +432,11 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             }
           },
           onclose: () => {
-            alert("La sesión se ha CERRADO (onclose)."); // DEBUG CLOSE
             console.log("Session connection closed");
             disconnect();
           },
           onerror: (err) => {
-            const errMsg = "Session Error: " + (err instanceof Error ? err.message : JSON.stringify(err));
-            console.error(errMsg);
-            alert(errMsg); // Debug alert for user
+            console.error("Session Error:", err);
             disconnect();
             setStatus('error');
           }
@@ -462,9 +446,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       sessionRef.current = sessionPromise;
 
     } catch (error: any) {
-      const errMsg = "Connection Failed: " + (error?.message || JSON.stringify(error));
-      console.error(errMsg);
-      alert(errMsg); // Debug alert for user
+      console.error("Connection Failed:", error);
       setStatus('error');
       disconnect();
     }
