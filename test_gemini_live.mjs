@@ -1,6 +1,6 @@
 
 // Diagnostic Script for Gemini Live API
-const API_KEY = "AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg"; // User provided key
+const API_KEY = "AIzaSyCbVKa_AK1zcq6Gr8Q78PetZ1ob_Whjj8Y"; // User provided key (New)
 const HOST = "generativelanguage.googleapis.com";
 const MODEL = "models/gemini-2.0-flash-exp";
 const URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${API_KEY}`;

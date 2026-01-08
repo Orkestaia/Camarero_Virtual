@@ -202,7 +202,7 @@ function App() {
   };
 
   // --- HOOK ---
-  const geminiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
+  const geminiKey = 'AIzaSyCbVKa_AK1zcq6Gr8Q78PetZ1ob_Whjj8Y';
 
   const {
     status,
@@ -211,8 +211,7 @@ function App() {
     isMuted,
     setIsMuted,
     volumeLevel,
-    logs,
-    lastError
+    logs
   } = useLiveSession({
     apiKey: geminiKey,
     tableNumber,
@@ -274,7 +273,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">Gestión Inteligente v2.3 (Data Fix)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v5.2 (Stable)</p>
         </div>
       </div>
     );
@@ -297,7 +296,7 @@ function App() {
           <div className="w-8 h-8 bg-[#1B4332] rounded-full flex items-center justify-center text-white">
             <ChefHat size={16} strokeWidth={1.5} />
           </div>
-          <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi (Modo Minimal)</span>
+          <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi</span>
         </button>
         <div className="flex items-center gap-2 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
           <span className="text-[10px] text-stone-500 uppercase font-bold">Mesa</span>
@@ -513,25 +512,7 @@ function App() {
       </div>
 
 
-      <DebugFooter lastError={lastError} />
     </>
-  );
-}
-
-// Force Deploy Trigger v5.1-DIAGNOSTIC
-// Last Update: 2026-01-08 21:00 UTC
-
-function DebugFooter({ lastError }: { lastError: { code?: number; reason?: string; time: string } | null }) {
-  if (!lastError) return null;
-  return (
-    <div className="fixed bottom-0 left-0 right-0 bg-red-900 text-white text-xs p-2 z-[60] flex items-center justify-between shadow-lg animate-slideUp">
-      <span className="font-mono">
-        ⚠️ Error ({lastError.time}): Code {lastError.code || "N/A"} / {lastError.reason || "Unknown"}
-      </span>
-      <button onClick={() => window.location.reload()} className="bg-white/20 px-2 py-1 rounded text-[10px] hover:bg-white/30 uppercase tracking-wider font-bold">
-        Reiniciar
-      </button>
-    </div>
   );
 }
 
