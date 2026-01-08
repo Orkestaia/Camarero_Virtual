@@ -102,15 +102,33 @@ const KitchenDashboard: React.FC<KitchenDashboardProps> = ({ orders, onUpdateSta
         return Object.entries(summary).sort((a, b) => b[1] - a[1]); // Sort by count desc
     }, [orders, itemStates]);
 
+    const parseSpanishDate = (dateStr: string) => {
+        if (!dateStr) return new Date();
+        // Handle ISO
+        if (dateStr.includes('T')) return new Date(dateStr);
+
+        // Handle HH:mm (assume today)
+        if (dateStr.includes(':') && dateStr.length < 9) {
+            const [hours, minutes] = dateStr.split(':').map(Number);
+            const now = new Date();
+            now.setHours(hours, minutes, 0, 0);
+            return now;
+        }
+
+        return new Date(dateStr);
+    };
+
     const getUrgency = (timestamp: string) => {
-        const elapsed = (currentTime - new Date(timestamp).getTime()) / 60000;
+        const date = parseSpanishDate(timestamp);
+        const elapsed = (currentTime - date.getTime()) / 60000;
         if (elapsed > 25) return 'critical';
         if (elapsed > 12) return 'warning';
         return 'normal';
     };
 
     const formatElapsed = (timestamp: string) => {
-        const mins = Math.floor((currentTime - new Date(timestamp).getTime()) / 60000);
+        const date = parseSpanishDate(timestamp);
+        const mins = Math.floor((currentTime - date.getTime()) / 60000);
         return `${mins}m`;
     };
 

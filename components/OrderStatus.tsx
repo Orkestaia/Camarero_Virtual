@@ -9,7 +9,17 @@ interface OrderStatusProps {
 
 const OrderStatus: React.FC<OrderStatusProps> = ({ orders, tableNumber }) => {
   const [isOpen, setIsOpen] = React.useState(true);
-  const myOrders = orders.filter(o => o.tableNumber === tableNumber).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // Filter for TODAY's orders only (ignore old tests)
+  const isToday = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+  };
+
+  const myOrders = orders
+    .filter(o => o.tableNumber === tableNumber && isToday(o.timestamp))
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   if (myOrders.length === 0) return null;
 

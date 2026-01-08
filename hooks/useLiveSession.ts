@@ -151,7 +151,7 @@ export const useLiveSession = ({
         config: {
           responseModalities: [Modality.TEXT],
           generationConfig: { temperature: 0.7 },
-          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. PACIENCIA EXTREMA: El usuario puede dudar. ESPERA SIEMPRE 2 SEGUNDOS DE SILENCIO antes de hablar. NO INTERRUMPAS.\n2. CONFIRMACIÓN COMENSALES: Si el usuario dice 'somos X', RESPONDE SIEMPRE: '¡Oído! Mesa para X. ¿Qué os apetece?'.\n3. PEDIDOS: Si piden algo, usa la herramienta 'addToOrder' y CONFIRMA: 'Anotado X'.\n4. CIERRE: Si dicen 'eso es todo', usa 'confirmOrder' y DESPÍDETE: '¡Marchando!'.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
+          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. CONVERSACIÓN: Sé natural. Si el usuario hace una pausa larga, pregunta. No esperes eternamente.\n2. CONFIRMACIÓN COMENSALES: Si el usuario dice 'somos X', RESPONDE SIEMPRE: '¡Oído! Mesa para X. ¿Qué os apetece?'.\n3. PEDIDOS: Si piden algo, usa la herramienta 'addToOrder' y CONFIRMA: 'Anotado X'.\n4. CIERRE: Si dicen 'eso es todo', usa 'confirmOrder' y DESPÍDETE: '¡Marchando!'.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
           tools: [
             {
               functionDeclarations: [
@@ -258,9 +258,9 @@ export const useLiveSession = ({
 
                   // 3. Fallback: Check synonyms or simplified names (e.g. "Gildas" -> "Gilda")
                   if (!item) {
-                    // Remove trailing 's' for plural
-                    const singular = searchName.replace(/s$/, '');
-                    item = menu.find(m => m.name.toLowerCase().includes(singular));
+                    // Remove trailing 's' or 'es' for plural
+                    const singular = searchName.replace(/s$/, '').replace(/es$/, '');
+                    item = menuRef.current.find(m => m.name.toLowerCase().includes(singular));
                   }
 
                   if (item) {
