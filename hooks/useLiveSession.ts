@@ -151,7 +151,7 @@ export const useLiveSession = ({
         config: {
           responseModalities: [Modality.TEXT],
           generationConfig: { temperature: 0.7 },
-          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[CONTEXTO ACTUAL: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
+          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. PACIENCIA EXTREMA: El usuario puede dudar. ESPERA SIEMPRE 2 SEGUNDOS DE SILENCIO antes de hablar. NO INTERRUMPAS.\n2. CONFIRMACIÓN COMENSALES: Si el usuario dice 'somos X', RESPONDE SIEMPRE: '¡Oído! Mesa para X. ¿Qué os apetece?'.\n3. PEDIDOS: Si piden algo, usa la herramienta 'addToOrder' y CONFIRMA: 'Anotado X'.\n4. CIERRE: Si dicen 'eso es todo', usa 'confirmOrder' y DESPÍDETE: '¡Marchando!'.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
           tools: [
             {
               functionDeclarations: [

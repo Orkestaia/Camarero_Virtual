@@ -8,7 +8,7 @@ import MenuExplorer from './components/MenuExplorer';
 import KitchenDashboard from './components/KitchenDashboard';
 import OrderStatus from './components/OrderStatus';
 import { fetchMenuFromWebhook, sendOrderToWebhook, fetchOrdersFromWebhook, updateOrderInWebhook } from './utils/api';
-import { Mic, MicOff, ChefHat, AlertCircle, User, LayoutGrid, Sparkles, Volume2 } from 'lucide-react';
+import { Mic, MicOff, ChefHat, AlertCircle, User, LayoutGrid, Sparkles, Volume2, Receipt } from 'lucide-react';
 import { ELEVENLABS_CONFIG } from './constants';
 
 function App() {
