@@ -284,6 +284,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
             }, 2000);
 
+            alert("Iniciando procesamiento de audio..."); // DEBUG PROCESSING
             const source = ac.createMediaStreamSource(stream);
             const processor = ac.createScriptProcessor(4096, 1, 1);
             inputProcessorRef.current = processor;
@@ -309,6 +310,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
           },
           onmessage: async (msg: LiveServerMessage) => {
             console.log("Received LiveServerMessage:", msg);
+            alert("Mensaje recibido de Gemini: " + JSON.stringify(msg).substring(0, 100)); // DEBUG MESSAGE
 
             if (msg.serverContent?.modelTurn) {
               const text = msg.serverContent.modelTurn.parts?.find(p => p.text)?.text;
@@ -320,6 +322,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             }
 
             if (msg.toolCall) {
+              alert("Gemini quiere usar una herramienta: " + msg.toolCall.functionCalls[0].name); // DEBUG TOOL
               const responses = [];
 
               for (const fc of msg.toolCall.functionCalls) {
