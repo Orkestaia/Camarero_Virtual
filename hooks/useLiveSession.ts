@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GoogleGenAI, Modality, SchemaType } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import { createPcmBlob } from '../utils/audio';
 import { ELEVENLABS_CONFIG, SYSTEM_INSTRUCTION } from '../constants';
 
@@ -118,9 +118,9 @@ export const useLiveSession = ({
                   name: "setDiners",
                   description: "Establece el número de comensales de la mesa.",
                   parameters: {
-                    type: SchemaType.OBJECT,
+                    type: "OBJECT",
                     properties: {
-                      count: { type: SchemaType.INTEGER, description: "Número de personas." }
+                      count: { type: "INTEGER", description: "Número de personas." }
                     },
                     required: ["count"]
                   }
@@ -129,11 +129,11 @@ export const useLiveSession = ({
                   name: "addToOrder",
                   description: "Añade un plato o bebida al pedido.",
                   parameters: {
-                    type: SchemaType.OBJECT,
+                    type: "OBJECT",
                     properties: {
-                      itemName: { type: SchemaType.STRING, description: "Nombre exacto del plato o bebida." },
-                      quantity: { type: SchemaType.INTEGER, description: "Cantidad." },
-                      notes: { type: SchemaType.STRING, description: "Notas (ej: 'sin cebolla')." }
+                      itemName: { type: "STRING", description: "Nombre exacto del plato o bebida." },
+                      quantity: { type: "INTEGER", description: "Cantidad." },
+                      notes: { type: "STRING", description: "Notas (ej: 'sin cebolla')." }
                     },
                     required: ["itemName", "quantity"]
                   }
@@ -142,7 +142,7 @@ export const useLiveSession = ({
                   name: "confirmOrder",
                   description: "Confirma y envía el pedido a cocina.",
                   parameters: {
-                    type: SchemaType.OBJECT,
+                    type: "OBJECT",
                     properties: {},
                   }
                 }
@@ -187,7 +187,7 @@ export const useLiveSession = ({
             if (msg.toolCall) {
               msg.toolCall.functionCalls.forEach((fc: any) => {
                 const args = fc.args;
-                let result = { success: true };
+                let result: { success: boolean; error?: string } = { success: true };
 
                 if (fc.name === 'setDiners') {
                   onSetDiners(args.count);
