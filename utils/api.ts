@@ -10,7 +10,7 @@ const N8N_WEBHOOK_URL = "https://acgrowthmarketing.app.n8n.cloud/webhook/9d2ccd8
 
 // URLs to fetch data as CSV (Read Only - Fast)
 const MENU_CSV_URL = `https://docs.google.com/spreadsheets/d/155E3W-VivYPWdAWFOSJXsf9PXrInIu7m25-gxdTF9RM/export?format=csv&gid=782608799`;
-const ORDERS_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0ZEi4qlGwZ3g8dFBGjNTUynory53ETAqGNQ-WS4vjv_-ENfFRTZOOc4yI9ZcHiD9BICAPkQwiQgz6/pub?output=csv`;
+const ORDERS_CSV_URL = `https://docs.google.com/spreadsheets/d/1jMkUn7r8qIM8Fs4kE1C3GCbTk6sIWikITxiLCdlpHxo/export?format=csv&gid=427352638`;
 
 // Local memory for optimistic UI updates
 let localOrders: ConfirmedOrder[] = [];
