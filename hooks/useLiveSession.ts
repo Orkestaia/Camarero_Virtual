@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { createPcmBlob } from '../utils/audio';
+import { ELEVENLABS_CONFIG } from '../constants';
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -55,6 +56,38 @@ export const useLiveSession = ({
     setStatus('disconnected');
   }, []);
 
+  const speak = useCallback(async (text: string) => {
+    if (!text || !audioContextRef.current) return;
+
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': ELEVENLABS_CONFIG.API_KEY
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+        })
+      });
+
+      if (!response.ok) throw new Error("ElevenLabs API Error");
+
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+
+    } catch (error) {
+      console.error("Speech Error:", error);
+    }
+  }, []);
+
   const connect = useCallback(async () => {
     // FORCE USER API KEY FOR STABILITY
     const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
@@ -76,7 +109,7 @@ export const useLiveSession = ({
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.TEXT],
           systemInstruction: "Eres Patxi, un camarero del Restaurante Garrote. Saluda brevemente y ayuda al cliente.",
         },
         callbacks: {
@@ -106,7 +139,10 @@ export const useLiveSession = ({
           onmessage: (msg: any) => {
             if (msg.serverContent?.modelTurn) {
               const text = msg.serverContent.modelTurn.parts?.find((p: any) => p.text)?.text;
-              if (text) setLogs(prev => [...prev, { role: 'assistant', text }]);
+              if (text) {
+                setLogs(prev => [...prev, { role: 'assistant', text }]);
+                speak(text);
+              }
             }
           },
           onclose: (ev?: { code: number; reason: string }) => {
