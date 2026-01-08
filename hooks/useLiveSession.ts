@@ -141,9 +141,9 @@ export const useLiveSession = ({
                   name: "setDiners",
                   description: "Establece el número de comensales de la mesa.",
                   parameters: {
-                    type: "OBJECT",
+                    type: "OBJECT" as any,
                     properties: {
-                      count: { type: "INTEGER", description: "Número de personas." }
+                      count: { type: "INTEGER" as any, description: "Número de personas." }
                     },
                     required: ["count"]
                   }
@@ -152,11 +152,11 @@ export const useLiveSession = ({
                   name: "addToOrder",
                   description: "Añade un plato o bebida al pedido.",
                   parameters: {
-                    type: "OBJECT",
+                    type: "OBJECT" as any,
                     properties: {
-                      itemName: { type: "STRING", description: "Nombre exacto del plato o bebida." },
-                      quantity: { type: "INTEGER", description: "Cantidad." },
-                      notes: { type: "STRING", description: "Notas (ej: 'sin cebolla')." }
+                      itemName: { type: "STRING" as any, description: "Nombre exacto del plato o bebida." },
+                      quantity: { type: "INTEGER" as any, description: "Cantidad." },
+                      notes: { type: "STRING" as any, description: "Notas (ej: 'sin cebolla')." }
                     },
                     required: ["itemName", "quantity"]
                   }
@@ -165,7 +165,7 @@ export const useLiveSession = ({
                   name: "confirmOrder",
                   description: "Confirma y envía el pedido a cocina.",
                   parameters: {
-                    type: "OBJECT",
+                    type: "OBJECT" as any,
                     properties: {},
                   }
                 }
