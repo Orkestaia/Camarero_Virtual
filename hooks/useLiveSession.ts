@@ -189,10 +189,14 @@ INSTRUCCIONES DE INICIO Y CIERRE:
   }, []);
 
   const connect = useCallback(async () => {
+    alert("Iniciando conexión..."); // DEBUG START
     if (!apiKey) {
-      console.error("API Key is missing!");
+      const msg = "Error: API Key de Gemini no encontrada. Revisa las variables de entorno.";
+      console.error(msg);
+      alert(msg);
       return;
     }
+    alert("API Key encontrada: " + apiKey.substring(0, 5) + "..."); // DEBUG KEY
 
     try {
       setStatus('connecting');
@@ -260,6 +264,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
         },
         callbacks: {
           onopen: () => {
+            alert("¡Sesión abierta con Gemini!"); // DEBUG OPEN
             setStatus('connected');
 
             // --- AUTO-GREET IMPLEMENTATION ---
