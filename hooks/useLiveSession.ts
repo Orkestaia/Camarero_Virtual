@@ -198,9 +198,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       setStatus('connecting');
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ac = new AudioContextClass({ sampleRate: 24000 });
+      // Consistent sample rate for both input/output to minimize context conflicts
+      const ac = new AudioContextClass({ sampleRate: 16000 });
       audioContextRef.current = ac;
-      const inputAc = new AudioContextClass({ sampleRate: 16000 });
 
       console.log("Requesting mic stream...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -251,12 +251,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.AUDIO, Modality.TEXT],
           systemInstruction: enhancedSystemInstruction,
-          tools: tools,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
-          }
+          tools: tools
         },
         callbacks: {
           onopen: () => {
@@ -279,8 +276,8 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
             }, 2000);
 
-            const source = inputAc.createMediaStreamSource(stream);
-            const processor = inputAc.createScriptProcessor(4096, 1, 1);
+            const source = ac.createMediaStreamSource(stream);
+            const processor = ac.createScriptProcessor(4096, 1, 1);
             inputProcessorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
@@ -300,7 +297,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             };
 
             source.connect(processor);
-            processor.connect(inputAc.destination);
+            processor.connect(ac.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
             console.log("Received LiveServerMessage:", msg);

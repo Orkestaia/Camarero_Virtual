@@ -202,7 +202,13 @@ function App() {
   };
 
   // --- HOOK ---
-  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY) as string;
+  const geminiKey = (() => {
+    try {
+      return (import.meta.env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.GEMINI_API_KEY || (window as any).process?.env?.API_KEY) as string;
+    } catch {
+      return '';
+    }
+  })();
 
   const {
     status,
