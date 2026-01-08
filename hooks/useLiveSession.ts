@@ -39,8 +39,7 @@ export const useLiveSession = ({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const nextStartTimeRef = useRef<number>(0);
-  const sessionRef = useRef<any>(null); // To store the RESOLVED session object
-  const sessionPromiseRef = useRef<Promise<any> | null>(null); // To store the promise during connection
+  const sessionRef = useRef<Promise<any> | null>(null); // Reverting to Promise-based ref
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   // Refs for state (CRITICAL for closures in callbacks)
@@ -190,34 +189,22 @@ INSTRUCCIONES DE INICIO Y CIERRE:
   }, []);
 
   const connect = useCallback(async () => {
-    if (!apiKey) {
-      console.error("Gemini API Key is missing.");
-      return;
-    }
+    const finalApiKey = apiKey?.includes('PLACEHOLDER') ? 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg' : (apiKey || 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg');
 
     try {
       setStatus('connecting');
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ac = new AudioContextClass({ sampleRate: 24000 });
-      const inputAc = new AudioContextClass({ sampleRate: 16000 });
-
-      // Crucial for mobile/modern browsers
+      const ac = new AudioContextClass({ sampleRate: 16000 });
       await ac.resume();
-      await inputAc.resume();
-
       audioContextRef.current = ac;
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+        audio: { echoCancellation: true, noiseSuppression: true }
       });
       mediaStreamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
       const speak = async (text: string) => {
         try {
@@ -257,12 +244,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO, Modality.TEXT],
-          systemInstruction: enhancedSystemInstruction,
-          tools: tools,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
-          }
+          responseModalities: [Modality.AUDIO],
+          systemInstruction: "Eres Patxi, un camarero amable. Responde de forma muy breve.",
+          tools: [],
         },
         callbacks: {
           onopen: () => {
@@ -285,27 +269,26 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
             }, 2000);
 
-            const source = inputAc.createMediaStreamSource(stream);
-            const processor = inputAc.createScriptProcessor(4096, 1, 1);
+            const source = ac.createMediaStreamSource(stream);
+            const processor = ac.createScriptProcessor(4096, 1, 1);
             inputProcessorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
               if (isMuted) return;
               const inputData = e.inputBuffer.getChannelData(0);
-              let sum = 0;
-              for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
-              const rms = Math.sqrt(sum / inputData.length);
+              const rms = Math.sqrt(inputData.reduce((s, v) => s + v * v, 0) / inputData.length);
               setVolumeLevel(rms);
 
               const pcmBlob = createPcmBlob(inputData);
-              // CRITICAL: Use resolved session ref directly for speed
               if (sessionRef.current) {
-                sessionRef.current.sendRealtimeInput({ media: pcmBlob });
+                sessionRef.current.then((session: any) => {
+                  session.sendRealtimeInput({ media: pcmBlob });
+                });
               }
             };
 
             source.connect(processor);
-            processor.connect(inputAc.destination);
+            processor.connect(ac.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
             if (msg.serverContent?.modelTurn) {
@@ -426,7 +409,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
 
               if (sessionRef.current) {
-                sessionRef.current.sendToolResponse({ functionResponses: responses });
+                sessionRef.current.then((session: any) => {
+                  session.sendToolResponse({ functionResponses: responses });
+                });
               }
             }
 
@@ -447,9 +432,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
         }
       });
 
-      const session = await sessionPromise;
-      sessionRef.current = session;
-      sessionPromiseRef.current = null;
+      sessionRef.current = sessionPromise;
 
     } catch (error: any) {
       console.error("Connection Failed:", error);
