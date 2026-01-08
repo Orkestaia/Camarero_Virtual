@@ -8,7 +8,8 @@ import MenuExplorer from './components/MenuExplorer';
 import KitchenDashboard from './components/KitchenDashboard';
 import OrderStatus from './components/OrderStatus';
 import { fetchMenuFromWebhook, sendOrderToWebhook, fetchOrdersFromWebhook, updateOrderInWebhook } from './utils/api';
-import { Mic, MicOff, ChefHat, AlertCircle, User, LayoutGrid, Sparkles } from 'lucide-react';
+import { Mic, MicOff, ChefHat, AlertCircle, User, LayoutGrid, Sparkles, Volume2 } from 'lucide-react';
+import { ELEVENLABS_CONFIG } from './constants';
 
 function App() {
   // Global State
@@ -196,6 +197,10 @@ function App() {
     await updateOrderInWebhook(orderId, newStatus);
   };
 
+  const handleConnect = () => {
+    connect();
+  };
+
   // --- HOOK ---
   const {
     status,
@@ -217,40 +222,6 @@ function App() {
     dinersCount,
     clientName
   });
-
-  // --- GREETING FALLBACK LOGIC ---
-  useEffect(() => {
-    let greetingTimeout: NodeJS.Timeout;
-
-    if (status === 'connected') {
-      // Check if Patxi has already spoken (assistant logs)
-      const hasSpoken = logs.some(l => l.role === 'assistant' || l.role === 'system');
-
-      if (!hasSpoken) {
-        greetingTimeout = setTimeout(() => {
-          // Final check before manual injection
-          const stillSilent = !logs.some(l => l.role === 'assistant');
-          if (stillSilent) {
-            const greeting = "¡Hola! Bienvenidos al Restaurante Garrote. ¿Mesa para cuántos?";
-
-            // 1. Speak it using Browser TTS (Fallback)
-            if ('speechSynthesis' in window) {
-              const utterance = new SpeechSynthesisUtterance(greeting);
-              utterance.lang = 'es-ES';
-              utterance.rate = 1.0;
-              window.speechSynthesis.speak(utterance);
-            }
-
-            // 2. Note: We don't manually add to logs here if useLiveSession handles it, 
-            // but since useLiveSession relies on the model, we add a "System" log to show it happened.
-            // Actually, we'll just let the UI reflect that Patxi is "speaking" the welcome.
-          }
-        }, 4000); // Wait 4s for AI, then fallback
-      }
-    }
-
-    return () => clearTimeout(greetingTimeout);
-  }, [status, logs]);
 
   const totalPrice = cartItems.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
 
@@ -363,6 +334,11 @@ function App() {
                     <p className="text-amber-500/80 font-bold animate-pulse mb-2 text-[10px] uppercase tracking-[0.2em]">
                       {isMuted ? "En pausa" : "Escuchando..."}
                     </p>
+                    {status === 'connected' && !logs.some(l => l.role === 'assistant') && (
+                      <p className="text-[#D4A574] text-xs font-bold animate-bounce mt-2 bg-black/20 px-3 py-1 rounded-full border border-[#D4A574]/30">
+                        Di "Hola" para empezar
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -371,7 +347,7 @@ function App() {
               <div className="relative z-20 w-full mt-4">
                 {status === 'disconnected' || status === 'error' ? (
                   <button
-                    onClick={connect}
+                    onClick={handleConnect}
                     disabled={menuLoading}
                     className="w-full bg-[#FDF8F3] text-[#1B4332] rounded-xl py-4 font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
                   >

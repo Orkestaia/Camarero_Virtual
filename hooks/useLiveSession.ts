@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from "@google/genai";
 import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../utils/audio';
-import { SYSTEM_INSTRUCTION } from '../constants';
+import { SYSTEM_INSTRUCTION, ELEVENLABS_CONFIG } from '../constants';
 import { MenuItem, OrderItem } from '../types';
 
 interface UseLiveSessionProps {
@@ -207,15 +207,49 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
       const ai = new GoogleGenAI({ apiKey });
 
+      const speak = async (text: string) => {
+        try {
+          // Interrupt current audio if user starts speaking (handled via serverContent.interrupted usually)
+          // But here we can also track the current elevenlabs audio and stop it.
+          const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'xi-api-key': ELEVENLABS_CONFIG.API_KEY
+            },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_multilingual_v2',
+              voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+            })
+          });
+
+          if (!response.ok) return;
+
+          const blob = await response.blob();
+          const buffer = await blob.arrayBuffer();
+          if (!audioContextRef.current) return;
+          const audioBuffer = await audioContextRef.current.decodeAudioData(buffer);
+
+          const source = audioContextRef.current.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContextRef.current.destination);
+
+          // Clear previous sources if needed, but Gemini usually handles interruption
+          sourcesRef.current.add(source);
+          source.start(0);
+          source.onended = () => sourcesRef.current.delete(source);
+        } catch (e) {
+          console.error("ElevenLabs speak error:", e);
+        }
+      };
+
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        model: 'gemini-2.0-flash-exp', // Using a more stable model name if possible, or keeping the same
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.TEXT],
           systemInstruction: enhancedSystemInstruction,
-          tools: tools,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
-          }
+          tools: tools
         },
         callbacks: {
           onopen: () => {
@@ -223,10 +257,6 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             setStatus('connected');
 
             // --- AUTO-GREET IMPLEMENTATION ---
-            // Send a hidden "system" direction disguised as a user message to force the model to start.
-            // DELAY EDITED: Added 3000ms delay to ensure connection is fully established/ready before receiving trigger.
-            // User requested increase from 1s to 3s to avoid race conditions.
-            // Simplified trigger to "Hola" to behave like a natural user start.
             setTimeout(() => {
               if (sessionRef.current) {
                 sessionRef.current.then((session: any) => {
@@ -241,7 +271,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   });
                 });
               }
-            }, 3000);
+            }, 1500);
 
             const source = inputAc.createMediaStreamSource(stream);
             const processor = inputAc.createScriptProcessor(4096, 1, 1);
@@ -267,6 +297,14 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             processor.connect(inputAc.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
+            if (msg.serverContent?.modelTurn) {
+              const text = msg.serverContent.modelTurn.parts?.[0]?.text;
+              if (text) {
+                setLogs(prev => [...prev, { role: 'assistant', text }]);
+                speak(text);
+              }
+            }
+
             if (msg.toolCall) {
               const responses = [];
 
@@ -312,13 +350,11 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   }
 
                   // 4. Word-based Matching (Heuristic for Plurals/Parts)
-                  // e.g. "Gildas" (target) vs "Gilda esférica" (item)
                   if (!item) {
                     const targetWords = targetName.split(' ').filter(w => w.length > 2);
                     item = menuRef.current.find(m => {
                       if (!m.available) return false;
                       const nameWords = normalize(m.name).split(' ');
-                      // Match if ANY significant word from target exists in item name
                       return targetWords.some(w => nameWords.includes(w) || nameWords.some(nw => nw.startsWith(w) || w.startsWith(nw)));
                     });
                   }
@@ -344,7 +380,6 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   setLogs(prev => [...prev, { role: 'system', text: `🗑️ Eliminado: ${args.itemName}` }]);
 
                 } else if (fc.name === 'confirmOrder') {
-                  // USE REFS TO GET LATEST STATE TO PASS TO APP
                   const currentCart = cartItemsRef.current;
                   const currentDiners = dinersCountRef.current;
                   const currentName = clientNameRef.current;
@@ -353,7 +388,6 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                     result = { success: false, error: "Cart is empty" };
                     setLogs(prev => [...prev, { role: 'error', text: `✗ Carrito vacío` }]);
                   } else {
-                    // DELEGATE TO APP PROP. Pass currentCart to avoid closure issues.
                     const success = await onConfirmOrder(currentDiners, currentName, currentCart);
 
                     if (success) {
@@ -365,11 +399,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                     }
                   }
                 } else if (fc.name === 'endSession') {
-                  // Handle session end
                   result = { success: true, message: "Ending session" };
                   setLogs(prev => [...prev, { role: 'system', text: `👋 Finalizando llamada...` }]);
 
-                  // Disconnect after a short delay to allow the "Que aproveche" audio to finish playing
                   setTimeout(() => {
                     disconnect();
                   }, 4000);
@@ -389,36 +421,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
             }
 
-            const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (base64Audio && audioContextRef.current) {
-              const ctx = audioContextRef.current;
-              nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-
-              const audioBuffer = await decodeAudioData(
-                base64ToUint8Array(base64Audio),
-                ctx,
-                24000
-              );
-
-              const source = ctx.createBufferSource();
-              source.buffer = audioBuffer;
-              const gainNode = ctx.createGain();
-              gainNode.gain.value = 1.0;
-
-              source.connect(gainNode);
-              gainNode.connect(ctx.destination);
-
-              source.start(nextStartTimeRef.current);
-              nextStartTimeRef.current += audioBuffer.duration;
-
-              sourcesRef.current.add(source);
-              source.onended = () => sourcesRef.current.delete(source);
-            }
-
             if (msg.serverContent?.interrupted) {
               sourcesRef.current.forEach(s => s.stop());
               sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
             }
           },
           onclose: () => {
