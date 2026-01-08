@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, SchemaType } from "@google/genai";
 import { createPcmBlob } from '../utils/audio';
-import { ELEVENLABS_CONFIG } from '../constants';
+import { ELEVENLABS_CONFIG, SYSTEM_INSTRUCTION } from '../constants';
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -110,7 +110,45 @@ export const useLiveSession = ({
         model: 'models/gemini-2.0-flash-exp',
         config: {
           responseModalities: [Modality.TEXT],
-          systemInstruction: "Eres Patxi, un camarero del Restaurante Garrote. Saluda brevemente y ayuda al cliente.",
+          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[CONTEXTO ACTUAL: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
+          tools: [
+            {
+              functionDeclarations: [
+                {
+                  name: "setDiners",
+                  description: "Establece el número de comensales de la mesa.",
+                  parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                      count: { type: SchemaType.INTEGER, description: "Número de personas." }
+                    },
+                    required: ["count"]
+                  }
+                },
+                {
+                  name: "addToOrder",
+                  description: "Añade un plato o bebida al pedido.",
+                  parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                      itemName: { type: SchemaType.STRING, description: "Nombre exacto del plato o bebida." },
+                      quantity: { type: SchemaType.INTEGER, description: "Cantidad." },
+                      notes: { type: SchemaType.STRING, description: "Notas (ej: 'sin cebolla')." }
+                    },
+                    required: ["itemName", "quantity"]
+                  }
+                },
+                {
+                  name: "confirmOrder",
+                  description: "Confirma y envía el pedido a cocina.",
+                  parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {},
+                  }
+                }
+              ]
+            }
+          ]
         },
         callbacks: {
           onopen: () => {
@@ -143,6 +181,48 @@ export const useLiveSession = ({
                 setLogs(prev => [...prev, { role: 'assistant', text }]);
                 speak(text);
               }
+            }
+
+            // TOOL EXECUTION
+            if (msg.toolCall) {
+              msg.toolCall.functionCalls.forEach((fc: any) => {
+                const args = fc.args;
+                let result = { success: true };
+
+                if (fc.name === 'setDiners') {
+                  onSetDiners(args.count);
+                } else if (fc.name === 'addToOrder') {
+                  const item = menu.find(m => m.name.toLowerCase() === args.itemName.toLowerCase());
+                  if (item) {
+                    onAddToCart(item, args.quantity, args.notes);
+                  } else {
+                    // Try fuzzy match or fallback
+                    const fallback = menu.find(m => m.name.toLowerCase().includes(args.itemName.toLowerCase()));
+                    if (fallback) {
+                      onAddToCart(fallback, args.quantity, args.notes);
+                    } else {
+                      result = { success: false, error: 'Item not found' };
+                    }
+                  }
+                } else if (fc.name === 'confirmOrder') {
+                  onConfirmOrder(dinersCount, clientName).then(success => {
+                    // Can handle post-confirmation logic here
+                  });
+                }
+
+                if (sessionRef.current) {
+                  sessionRef.current.then((session: any) => {
+                    session.sendToolResponse({
+                      functionResponses: [
+                        {
+                          id: fc.id,
+                          response: { result }
+                        }
+                      ]
+                    });
+                  });
+                }
+              });
             }
           },
           onclose: (ev?: { code: number; reason: string }) => {
