@@ -110,6 +110,24 @@ export const useLiveSession = ({
 
 
 
+  // REFS FOR DYNAMIC PROPS (Prevent Stale Closures in WebSocket Cbs)
+  const menuRef = useRef(menu);
+  const onAddToCartRef = useRef(onAddToCart);
+  const onSetDinersRef = useRef(onSetDiners);
+  const onConfirmOrderRef = useRef(onConfirmOrder);
+  const dinersCountRef = useRef(dinersCount);
+  const clientNameRef = useRef(clientName);
+
+  // Sync refs on render
+  useEffect(() => {
+    menuRef.current = menu;
+    onAddToCartRef.current = onAddToCart;
+    onSetDinersRef.current = onSetDiners;
+    onConfirmOrderRef.current = onConfirmOrder;
+    dinersCountRef.current = dinersCount;
+    clientNameRef.current = clientName;
+  }, [menu, onAddToCart, onSetDiners, onConfirmOrder, dinersCount, clientName]);
+
   const connect = useCallback(async () => {
     // FORCE USER API KEY FOR STABILITY
     const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
