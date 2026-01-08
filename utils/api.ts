@@ -225,28 +225,46 @@ export async function fetchOrdersFromSheets(): Promise<ConfirmedOrder[]> {
 // --- N8N WRITING FUNCTIONS ---
 
 async function sendToN8N(payload: any): Promise<boolean> {
+    const url = N8N_WEBHOOK_URL;
+    const body = JSON.stringify(payload);
+
     try {
-        // N8N usually accepts JSON
-        await fetch(N8N_WEBHOOK_URL, {
+        console.log("🚀 Sending to N8N (Simple Request):", payload);
+
+        // Strategy: text/plain avoids CORS Preflight (OPTIONS)
+        // N8N Webhook node generally autodetects JSON in body
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'text/plain;charset=UTF-8',
             },
-            body: JSON.stringify(payload)
+            body: body
         });
+
+        if (!response.ok) {
+            const txt = await response.text();
+            console.error("❌ N8N Server Error:", response.status, txt);
+            return false;
+        }
+
+        console.log("✅ N8N Success:", response.status);
         return true;
+
     } catch (e) {
-        console.error("Error calling N8N:", e);
-        // Fallback: Try with no-cors if CORS is an issue (common with direct browser calls)
+        console.error("❌ N8N Network Error:", e);
+        // Fallback: no-cors (Opaque request). We won't know if it succeeded, but it bypasses browser blockers.
         try {
-            await fetch(N8N_WEBHOOK_URL, {
+            console.log("⚠️ Retrying with no-cors...");
+            await fetch(url, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(payload)
+                body: body
             });
+            console.log("✅ N8N Opaque Sent (Assume Success)");
             return true;
         } catch (e2) {
+            console.error("❌ N8N Retry Failed:", e2);
             return false;
         }
     }
