@@ -273,7 +273,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v5.13 (Voice Fixes & KDS Dates)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v6.0 (Native Audio & Fixes)</p>
         </div>
       </div>
     );
@@ -497,12 +497,7 @@ function App() {
         <div className="h-24"></div>
       </main>
 
-      {/* CONFIRMED ORDERS STATUS (Toast Style Bottom Right) */}
-      {confirmedOrders.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-40 max-w-[250px]">
-          <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
-        </div>
-      )}
+
     </>
   );
 }

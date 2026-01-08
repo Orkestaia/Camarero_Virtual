@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
+import { AudioPlayer } from '../utils/audio';
 import { createPcmBlob } from '../utils/audio';
-import { ELEVENLABS_CONFIG, SYSTEM_INSTRUCTION } from '../constants';
+import { SYSTEM_INSTRUCTION } from '../constants';
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -40,10 +41,12 @@ export const useLiveSession = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const sessionRef = useRef<Promise<any> | null>(null);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current) sessionRef.current = null;
+    audioPlayerRef.current?.stop();
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
@@ -59,54 +62,7 @@ export const useLiveSession = ({
     setStatus('disconnected');
   }, []);
 
-  const processSpeechQueue = useCallback(async () => {
-    if (isSpeakingRef.current || speechQueueRef.current.length === 0 || !audioContextRef.current) return;
 
-    isSpeakingRef.current = true;
-    const textToSpeak = speechQueueRef.current.shift();
-
-    try {
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': ELEVENLABS_CONFIG.API_KEY
-        },
-        body: JSON.stringify({
-          text: textToSpeak,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-        })
-      });
-
-      if (!response.ok) throw new Error("ElevenLabs API Error");
-
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
-
-      source.onended = () => {
-        isSpeakingRef.current = false;
-        processSpeechQueue(); // Process next in queue
-      };
-
-      source.start(0);
-
-    } catch (error) {
-      console.error("Speech Error:", error);
-      isSpeakingRef.current = false;
-      processSpeechQueue();
-    }
-  }, []);
-
-  const speak = useCallback((text: string) => {
-    if (!text) return;
-    speechQueueRef.current.push(text);
-    processSpeechQueue();
-  }, [processSpeechQueue]);
 
 
 
@@ -145,11 +101,14 @@ export const useLiveSession = ({
       });
       mediaStreamRef.current = stream;
 
+      const audioPlayer = new AudioPlayer(ac, 24000);
+      audioPlayerRef.current = audioPlayer;
+
       const ai = new GoogleGenAI({ apiKey: finalApiKey });
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.TEXT],
+          responseModalities: [Modality.AUDIO],
           generationConfig: { temperature: 0.7 },
           systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. CONVERSACIÓN: Sé natural. Si el usuario hace una pausa larga, pregunta. No esperes eternamente.\n2. CONFIRMACIÓN COMENSALES: Si el usuario dice 'somos X', RESPONDE SIEMPRE: '¡Oído! Mesa para X. ¿Qué os apetece?'.\n3. PEDIDOS: Si piden algo, usa la herramienta 'addToOrder' y CONFIRMA: 'Anotado X'.\n4. CIERRE: Si dicen 'eso es todo', usa 'confirmOrder' y DESPÍDETE: '¡Marchando!'.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
           tools: [
@@ -217,17 +176,32 @@ export const useLiveSession = ({
           },
           onmessage: (msg: any) => {
             if (msg.serverContent?.modelTurn) {
-              const text = msg.serverContent.modelTurn.parts?.find((p: any) => p.text)?.text;
-              if (text) {
-                textBufferRef.current += text;
-                // Only log final turn or if turn is explicitly complete
+              const parts = msg.serverContent.modelTurn.parts || [];
+
+              // Handle Audio
+              const audioPart = parts.find((p: any) => p.inlineData && p.inlineData.mimeType.startsWith('audio/'));
+              if (audioPart && audioPart.inlineData) {
+                const base64 = audioPart.inlineData.data;
+                const binaryHelper = atob(base64);
+                const len = binaryHelper.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                  bytes[i] = binaryHelper.charCodeAt(i);
+                }
+                // Play PCM
+                audioPlayerRef.current?.add16BitPCM(bytes.buffer);
+              }
+
+              // Handle Text (for logs)
+              const textPart = parts.find((p: any) => p.text);
+              if (textPart) {
+                textBufferRef.current += textPart.text;
               }
             }
 
             if (msg.serverContent?.turnComplete) {
               if (textBufferRef.current.trim()) {
                 setLogs(prev => [...prev, { role: 'assistant', text: textBufferRef.current }]);
-                speak(textBufferRef.current);
                 textBufferRef.current = '';
               }
             }

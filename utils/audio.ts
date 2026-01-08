@@ -53,3 +53,59 @@ export function createPcmBlob(data: Float32Array): Blob {
     mimeType: 'audio/pcm;rate=16000',
   };
 }
+export class AudioPlayer {
+  private queue: Float32Array[] = [];
+  private isCcPlaying = false;
+  private audioContext: AudioContext | null = null;
+  private sampleRate: number;
+
+  constructor(context: AudioContext, sampleRate: number = 24000) {
+    this.audioContext = context;
+    this.sampleRate = sampleRate;
+  }
+
+  add16BitPCM(arrayBuffer: ArrayBuffer) {
+    if (!this.audioContext) return;
+
+    // Convert Int16 to Float32
+    const dataInt16 = new Int16Array(arrayBuffer);
+    const float32 = new Float32Array(dataInt16.length);
+    for (let i = 0; i < dataInt16.length; i++) {
+      float32[i] = dataInt16[i] / 32768.0;
+    }
+
+    this.queue.push(float32);
+    this.playNext();
+  }
+
+  private playNext() {
+    if (this.isCcPlaying || this.queue.length === 0 || !this.audioContext) return;
+
+    this.isCcPlaying = true;
+    const chunk = this.queue.shift();
+
+    if (!chunk) {
+      this.isCcPlaying = false;
+      return;
+    }
+
+    const buffer = this.audioContext.createBuffer(1, chunk.length, this.sampleRate);
+    buffer.getChannelData(0).set(chunk);
+
+    const source = this.audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.audioContext.destination);
+
+    source.onended = () => {
+      this.isCcPlaying = false;
+      this.playNext();
+    };
+
+    source.start();
+  }
+
+  stop() {
+    this.queue = [];
+    this.isCcPlaying = false;
+  }
+}

@@ -309,11 +309,21 @@ export async function updateOrderStatus(orderId: string, status: 'cooking' | 're
     const finalHoraAceptado = order.acceptedTimestamp || "";
     const finalHoraEntrega = order.servedTimestamp || "";
 
+    // Helper: Safe date string
+    const getSafeTimeString = (isoStr: string | undefined): string => {
+        try {
+            if (!isoStr || isNaN(new Date(isoStr).getTime())) return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            return new Date(isoStr).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
+    };
+
     const payload = {
         Numero_pedido: order.id,
         numero_mesa: order.tableNumber,
         Pedido: pedidoString,
-        hora_pedido: new Date(order.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        hora_pedido: getSafeTimeString(order.timestamp),
         hora_aceptado: finalHoraAceptado, // Send preserved accepted time
         hora_entrega: finalHoraEntrega,   // Send new or preserved delivered time
         estado: sheetStatus,
