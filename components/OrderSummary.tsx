@@ -10,6 +10,7 @@ interface OrderSummaryProps {
   onRemoveItem: (id: string) => void;
   onUpdateQuantity: (id: string, quantity: number) => void;
   isSending?: boolean;
+  variant?: 'sheet' | 'inline';
 }
 
 const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -19,7 +20,8 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   onConfirm,
   onRemoveItem,
   onUpdateQuantity,
-  isSending = false
+  isSending = false,
+  variant = 'sheet'
 }) => {
   const [isBumped, setIsBumped] = useState(false);
   const prevQuantityRef = useRef(0);
@@ -27,7 +29,6 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   const currentQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
 
   useEffect(() => {
-    // Trigger animation only when quantity increases
     if (currentQuantity > prevQuantityRef.current) {
       setIsBumped(true);
       const timer = setTimeout(() => setIsBumped(false), 200);
@@ -35,6 +36,43 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
     }
     prevQuantityRef.current = currentQuantity;
   }, [currentQuantity]);
+
+  if (variant === 'inline') {
+    return (
+      <div className="w-full bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm mt-4">
+        <div className="bg-stone-50 p-3 border-b border-stone-100 flex justify-between items-center">
+          <span className="font-serif font-bold text-[#1B4332] flex items-center gap-2">
+            <Receipt size={16} className="text-[#D4A574]" /> Su Comanda
+          </span>
+          <span className="font-mono font-bold text-lg text-[#1B4332]">{total.toFixed(2)}€</span>
+        </div>
+
+        <div className="p-2 space-y-2">
+          {items.map(item => (
+            <div key={item.id} className="flex items-center justify-between text-sm bg-white p-2 rounded border border-stone-50 shadow-sm">
+              <span className="flex-1 font-medium text-stone-700 truncate mr-2">{item.menuItem.name}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} className="text-stone-400 hover:text-stone-600"><Minus size={12} /></button>
+                <span className="w-4 text-center font-mono font-bold">{item.quantity}</span>
+                <button onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} className="text-stone-400 hover:text-stone-600"><Plus size={12} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 bg-stone-50 border-t border-stone-100">
+          <button
+            onClick={onConfirm}
+            disabled={isSending}
+            className="w-full bg-[#1B4332] text-white py-2 rounded-lg font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+          >
+            {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            {isSending ? 'Enviando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-sm shadow-xl shadow-stone-200/50 border border-stone-100 flex flex-col h-[500px] relative overflow-hidden">

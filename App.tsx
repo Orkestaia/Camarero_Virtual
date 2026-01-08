@@ -273,7 +273,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v5.11 (Refs & N8N No-Cors)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v5.12 (Inline Cart & Voice Fixes)</p>
         </div>
       </div>
     );
@@ -446,9 +446,29 @@ function App() {
               </div>
             )}
 
+            {/* INLINE CART (Visible if items exist) */}
+            {cartItems.length > 0 && (
+              <div className="animate-fadeIn mt-4">
+                <h3 className="font-serif text-lg font-bold text-[#1B4332] mb-2 flex items-center gap-2">
+                  <Receipt size={18} className="text-[#D4A574]" />
+                  Su Comanda Actual
+                </h3>
+                <OrderSummary
+                  items={cartItems}
+                  total={totalPrice}
+                  tableNumber={tableNumber}
+                  onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
+                  onRemoveItem={handleRemoveItem}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  isSending={isSending}
+                  variant="inline"
+                />
+              </div>
+            )}
+
             {/* Live Logs (Subtle) */}
             {status === 'connected' && logs.length > 0 && (
-              <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 text-xs text-stone-500 space-y-1 max-h-32 overflow-y-auto">
+              <div className="bg-stone-50 rounded-xl p-4 border border-stone-100 text-xs text-stone-500 space-y-1 max-h-32 overflow-y-auto mt-4">
                 {logs.slice(-3).map((log, i) => (
                   <div key={i} className="truncate opacity-70">
                     {log.role === 'user' ? '👤 ' : '🤖 '} {log.text}
@@ -477,42 +497,12 @@ function App() {
         <div className="h-24"></div>
       </main>
 
-      {/* ORDER SUMMARY SHEET (Compact/Expandable) */}
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-          <div className="bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-stone-100 pointer-events-auto max-h-[45vh] overflow-hidden flex flex-col rounded-t-2xl">
-            {/* Handle / Header */}
-            <div
-              className="w-full flex items-center justify-center p-2 bg-stone-50 border-b border-stone-100 cursor-pointer"
-            // Ideally toggle expand here, but for now we keep it moderately sized (max-h-45vh is decent)
-            >
-              <div className="w-12 h-1.5 bg-stone-300 rounded-full"></div>
-            </div>
-
-            {/* Scrollable list */}
-            <div className="overflow-y-auto p-4 pb-20 custom-scrollbar">
-              <OrderSummary
-                items={cartItems}
-                total={totalPrice}
-                tableNumber={tableNumber}
-                onConfirm={() => handleConfirmOrder(dinersCount, clientName)}
-                onRemoveItem={handleRemoveItem}
-                onUpdateQuantity={handleUpdateQuantity}
-                isSending={isSending}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONFIRMED ORDERS STATUS */}
+      {/* CONFIRMED ORDERS STATUS (Toast Style Bottom Right) */}
       {confirmedOrders.length > 0 && (
-        <div className="fixed top-20 right-4 z-40">
+        <div className="fixed bottom-4 right-4 z-40 max-w-[250px]">
           <OrderStatus orders={confirmedOrders} tableNumber={tableNumber} />
         </div>
       )}
-
-
     </>
   );
 }
