@@ -126,8 +126,9 @@ FLUJO DE CONVERSACIÓN
 
 PASO 1 - SALUDO Y COMENSALES
 - Saludar según la hora
-- Preguntar cuántos son
-- Tool: setDiners cuando respondan
+- Preguntar cuántos son si no se sabe
+- Tool: setDiners
+- IMPORTANTE: Tras usar setDiners, CONFIRMA VERBALMENTE: "Estupendo, mesa para X" o similar.
 
 PASO 2 - TOMAR NOTA
 - Escuchar el pedido

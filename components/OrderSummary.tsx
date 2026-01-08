@@ -121,7 +121,7 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
 
       <div className="p-5 bg-[#FDF8F3] border-t border-double border-stone-300">
         <div className="flex justify-between items-end mb-4">
-          <span className="font-serif text-stone-600 italic">Total Estimado</span>
+          <span className="font-serif text-stone-600 italic">Total</span>
           <span className="text-3xl font-serif font-bold text-[#1B4332]">{total.toFixed(2)}€</span>
         </div>
 
