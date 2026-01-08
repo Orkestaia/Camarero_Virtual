@@ -202,6 +202,8 @@ function App() {
   };
 
   // --- HOOK ---
+  const geminiKey = (import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY) as string;
+
   const {
     status,
     connect,
@@ -211,7 +213,7 @@ function App() {
     volumeLevel,
     logs
   } = useLiveSession({
-    apiKey: import.meta.env.VITE_GEMINI_API_KEY as string,
+    apiKey: geminiKey,
     tableNumber,
     menu,
     onAddToCart: handleAddToCart,
@@ -316,7 +318,7 @@ function App() {
                     <div className="mb-4 p-5 bg-gradient-to-br from-[#1B4332] to-[#2D5A45] rounded-full border border-[#D4A574]/50 shadow-inner">
                       <Mic size={32} className="text-stone-400" />
                     </div>
-                    <h2 className="text-3xl font-serif italic mb-2 text-white">¡Kaixo!</h2>
+                    <h2 className="text-3xl font-serif italic mb-2 text-white">¡Hola!</h2>
                     <p className="text-stone-300 text-sm font-light leading-relaxed mb-6">
                       Soy Patxi. Pulsa el botón para pedir.
                     </p>

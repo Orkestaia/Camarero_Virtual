@@ -190,7 +190,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
   const connect = useCallback(async () => {
     if (!apiKey) {
-      alert("API Key is missing!");
+      console.error("API Key is missing!");
       return;
     }
 
@@ -202,15 +202,16 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       audioContextRef.current = ac;
       const inputAc = new AudioContextClass({ sampleRate: 16000 });
 
+      console.log("Requesting mic stream...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
+      console.log("Mic stream obtained");
 
       const ai = new GoogleGenAI({ apiKey });
 
       const speak = async (text: string) => {
+        console.log("Patxi speaking (ElevenLabs):", text);
         try {
-          // Interrupt current audio if user starts speaking (handled via serverContent.interrupted usually)
-          // But here we can also track the current elevenlabs audio and stop it.
           const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}`, {
             method: 'POST',
             headers: {
@@ -224,7 +225,10 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             })
           });
 
-          if (!response.ok) return;
+          if (!response.ok) {
+            console.error("ElevenLabs response not OK");
+            return;
+          }
 
           const blob = await response.blob();
           const buffer = await blob.arrayBuffer();
@@ -235,7 +239,6 @@ INSTRUCCIONES DE INICIO Y CIERRE:
           source.buffer = audioBuffer;
           source.connect(audioContextRef.current.destination);
 
-          // Clear previous sources if needed, but Gemini usually handles interruption
           sourcesRef.current.add(source);
           source.start(0);
           source.onended = () => sourcesRef.current.delete(source);
@@ -244,16 +247,19 @@ INSTRUCCIONES DE INICIO Y CIERRE:
         }
       };
 
+      console.log("Initiating ai.live.connect...");
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.0-flash-exp', // Using a more stable model name if possible, or keeping the same
+        model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.TEXT],
+          responseModalities: [Modality.AUDIO],
           systemInstruction: enhancedSystemInstruction,
-          tools: tools
+          tools: tools,
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
+          }
         },
         callbacks: {
           onopen: () => {
-            console.log("Gemini Live Session Opened");
             setStatus('connected');
 
             // --- AUTO-GREET IMPLEMENTATION ---
@@ -271,7 +277,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
                   });
                 });
               }
-            }, 1500);
+            }, 2000);
 
             const source = inputAc.createMediaStreamSource(stream);
             const processor = inputAc.createScriptProcessor(4096, 1, 1);
@@ -297,9 +303,12 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             processor.connect(inputAc.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
+            console.log("Received LiveServerMessage:", msg);
+
             if (msg.serverContent?.modelTurn) {
-              const text = msg.serverContent.modelTurn.parts?.[0]?.text;
+              const text = msg.serverContent.modelTurn.parts?.find(p => p.text)?.text;
               if (text) {
+                console.log("Transcript extracted:", text);
                 setLogs(prev => [...prev, { role: 'assistant', text }]);
                 speak(text);
               }
@@ -430,7 +439,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             disconnect();
           },
           onerror: (err) => {
-            console.error(err);
+            console.error("Session error:", err);
             disconnect();
             setStatus('error');
           }
