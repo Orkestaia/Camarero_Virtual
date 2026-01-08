@@ -39,7 +39,8 @@ export const useLiveSession = ({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const nextStartTimeRef = useRef<number>(0);
-  const sessionRef = useRef<any>(null);
+  const sessionRef = useRef<any>(null); // To store the RESOLVED session object
+  const sessionPromiseRef = useRef<Promise<any> | null>(null); // To store the promise during connection
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   // Refs for state (CRITICAL for closures in callbacks)
@@ -207,7 +208,13 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
       audioContextRef.current = ac;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
       mediaStreamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey });
@@ -291,10 +298,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               setVolumeLevel(rms);
 
               const pcmBlob = createPcmBlob(inputData);
+              // CRITICAL: Use resolved session ref directly for speed
               if (sessionRef.current) {
-                sessionRef.current.then((session: any) => {
-                  session.sendRealtimeInput({ media: pcmBlob });
-                });
+                sessionRef.current.sendRealtimeInput({ media: pcmBlob });
               }
             };
 
@@ -420,9 +426,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               }
 
               if (sessionRef.current) {
-                sessionRef.current.then((session: any) => {
-                  session.sendToolResponse({ functionResponses: responses });
-                });
+                sessionRef.current.sendToolResponse({ functionResponses: responses });
               }
             }
 
@@ -443,7 +447,9 @@ INSTRUCCIONES DE INICIO Y CIERRE:
         }
       });
 
-      sessionRef.current = sessionPromise;
+      const session = await sessionPromise;
+      sessionRef.current = session;
+      sessionPromiseRef.current = null;
 
     } catch (error: any) {
       console.error("Connection Failed:", error);
