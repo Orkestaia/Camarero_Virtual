@@ -251,9 +251,12 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO, Modality.TEXT],
+          responseModalities: [Modality.AUDIO], // Reverting to basic AUDIO to test stability
           systemInstruction: enhancedSystemInstruction,
-          tools: tools
+          tools: tools,
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
+          }
         },
         callbacks: {
           onopen: () => {
@@ -433,10 +436,13 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             }
           },
           onclose: () => {
+            console.log("Session connection closed");
             disconnect();
           },
           onerror: (err) => {
-            console.error("Session error:", err);
+            const errMsg = "Session Error: " + (err instanceof Error ? err.message : JSON.stringify(err));
+            console.error(errMsg);
+            alert(errMsg); // Debug alert for user
             disconnect();
             setStatus('error');
           }
@@ -445,8 +451,10 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
       sessionRef.current = sessionPromise;
 
-    } catch (error) {
-      console.error("Connection failed", error);
+    } catch (error: any) {
+      const errMsg = "Connection Failed: " + (error?.message || JSON.stringify(error));
+      console.error(errMsg);
+      alert(errMsg); // Debug alert for user
       setStatus('error');
       disconnect();
     }
