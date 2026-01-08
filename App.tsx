@@ -202,13 +202,7 @@ function App() {
   };
 
   // --- HOOK ---
-  const geminiKey = (() => {
-    try {
-      return (import.meta.env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.GEMINI_API_KEY || (window as any).process?.env?.API_KEY) as string;
-    } catch {
-      return '';
-    }
-  })();
+  const geminiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
 
   const {
     status,
@@ -302,7 +296,7 @@ function App() {
           <div className="w-8 h-8 bg-[#1B4332] rounded-full flex items-center justify-center text-white">
             <ChefHat size={16} strokeWidth={1.5} />
           </div>
-          <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi</span>
+          <span className="font-serif font-bold text-lg text-[#1B4332]">Patxi (Modo Minimal)</span>
         </button>
         <div className="flex items-center gap-2 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
           <span className="text-[10px] text-stone-500 uppercase font-bold">Mesa</span>
