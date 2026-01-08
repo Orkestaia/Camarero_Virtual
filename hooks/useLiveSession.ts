@@ -30,6 +30,7 @@ export const useLiveSession = ({
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [isMuted, setIsMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(0);
+  const [lastError, setLastError] = useState<{ code: number; reason: string; time: string } | null>(null);
   const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -108,11 +109,18 @@ export const useLiveSession = ({
               if (text) setLogs(prev => [...prev, { role: 'assistant', text }]);
             }
           },
-          onclose: () => {
+          onclose: (ev?: { code: number; reason: string }) => {
+            console.log("❌ La sesión se ha CERRADO (onclose).", ev?.code, ev?.reason);
+            setLastError({ code: ev?.code || 0, reason: ev?.reason || 'Unknown reason', time: new Date().toLocaleTimeString() });
+            setStatus('disconnected'); // Assuming setIsConnected(false) maps to setStatus('disconnected')
+            // setIsSending(false); // This state is not defined in the current context
             disconnect();
           },
           onerror: (err) => {
             console.error("Live Session Error:", err);
+            setLastError({ code: 0, reason: String(err), time: new Date().toLocaleTimeString() });
+            setStatus('error'); // Assuming setIsConnected(false) maps to setStatus('error')
+            // setIsSending(false); // This state is not defined in the current context
             disconnect();
           }
         }

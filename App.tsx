@@ -211,7 +211,9 @@ function App() {
     isMuted,
     setIsMuted,
     volumeLevel,
-    logs
+    volumeLevel,
+    logs,
+    lastError
   } = useLiveSession({
     apiKey: geminiKey,
     tableNumber,
@@ -512,10 +514,26 @@ function App() {
       </div>
 
 
+      <DebugFooter lastError={lastError} />
     </>
   );
 }
 
-// Force Deploy Trigger v5.0-FIRE
-// Last Update: 2026-01-08 20:20 UTC
+// Force Deploy Trigger v5.1-DIAGNOSTIC
+// Last Update: 2026-01-08 21:00 UTC
+
+function DebugFooter({ lastError }: { lastError: { code?: number; reason?: string; time: string } | null }) {
+  if (!lastError) return null;
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-red-900 text-white text-xs p-2 z-[60] flex items-center justify-between shadow-lg animate-slideUp">
+      <span className="font-mono">
+        ⚠️ Error ({lastError.time}): Code {lastError.code || "N/A"} / {lastError.reason || "Unknown"}
+      </span>
+      <button onClick={() => window.location.reload()} className="bg-white/20 px-2 py-1 rounded text-[10px] hover:bg-white/30 uppercase tracking-wider font-bold">
+        Reiniciar
+      </button>
+    </div>
+  );
+}
+
 export default App;
