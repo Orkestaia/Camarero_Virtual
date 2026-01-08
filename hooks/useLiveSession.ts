@@ -269,6 +269,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
 
             // --- AUTO-GREET IMPLEMENTATION ---
             setTimeout(() => {
+              alert("Enviando saludo automático 'Hola'..."); // DEBUG GREET
               if (sessionRef.current) {
                 sessionRef.current.then((session: any) => {
                   session.send({
@@ -444,6 +445,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             }
           },
           onclose: () => {
+            alert("La sesión se ha CERRADO (onclose)."); // DEBUG CLOSE
             console.log("Session connection closed");
             disconnect();
           },
