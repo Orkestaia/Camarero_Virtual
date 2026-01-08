@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from "@google/genai";
-import { createPcmBlob, decodeAudioData, base64ToUint8Array } from '../utils/audio';
-import { SYSTEM_INSTRUCTION, ELEVENLABS_CONFIG } from '../constants';
-import { MenuItem, OrderItem } from '../types';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { createPcmBlob } from '../utils/audio';
 
 interface UseLiveSessionProps {
   apiKey: string;
   tableNumber: string;
-  menu: MenuItem[];
-  onAddToCart: (item: MenuItem, quantity: number, notes?: string) => void;
+  menu: any[];
+  onAddToCart: (item: any, quantity: number, notes?: string) => void;
   onRemoveFromOrder: (itemName: string) => void;
-  onConfirmOrder: (diners: number, name?: string, items?: OrderItem[]) => Promise<boolean>;
+  onConfirmOrder: (diners: number, name?: string, items?: any[]) => Promise<boolean>;
   onSetDiners: (count: number, name?: string) => void;
-  cartItems: OrderItem[];
+  cartItems: any[];
   dinersCount: number;
   clientName: string;
 }
@@ -34,162 +32,31 @@ export const useLiveSession = ({
   const [volumeLevel, setVolumeLevel] = useState(0);
   const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
 
-  // Refs for audio handling
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const nextStartTimeRef = useRef<number>(0);
-  const sessionRef = useRef<Promise<any> | null>(null); // Reverting to Promise-based ref
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-
-  // Refs for state (CRITICAL for closures in callbacks)
-  const cartItemsRef = useRef(cartItems);
-  const dinersCountRef = useRef(dinersCount);
-  const clientNameRef = useRef(clientName);
-  const tableNumberRef = useRef(tableNumber);
-  const menuRef = useRef(menu);
-
-  // Sync refs with props
-  useEffect(() => {
-    cartItemsRef.current = cartItems;
-    dinersCountRef.current = dinersCount;
-    clientNameRef.current = clientName;
-    tableNumberRef.current = tableNumber;
-    menuRef.current = menu;
-  }, [cartItems, dinersCount, clientName, tableNumber, menu]);
-
-  // ===== ENHANCED SYSTEM INSTRUCTION WITH MENU INFO =====
-  const enhancedSystemInstruction = useMemo(() => {
-    const availableMenu = menu.filter(item => item.available);
-
-    const byCategory = new Map<string, MenuItem[]>();
-    availableMenu.forEach(item => {
-      if (!byCategory.has(item.category)) {
-        byCategory.set(item.category, []);
-      }
-      byCategory.get(item.category)!.push(item);
-    });
-
-    let menuDescription = "MENÚ DISPONIBLE ACTUAL:\n";
-    byCategory.forEach((items, category) => {
-      menuDescription += `\n${category.toUpperCase()}:\n`;
-      items.forEach(item => {
-        menuDescription += `- ${item.name} (${item.price}€): ${item.description}`;
-        if (item.allergens.length > 0) {
-          menuDescription += ` [Alérgenos: ${item.allergens.join(', ')}]`;
-        }
-        if (item.dietary.length > 0) {
-          menuDescription += ` [${item.dietary.join(', ').toUpperCase()}]`;
-        }
-        menuDescription += "\n";
-      });
-    });
-
-    return `${SYSTEM_INSTRUCTION.replace('{TIME}', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))}
-
-Número de mesa actual: ${tableNumber}
-
-${menuDescription}
-
-INSTRUCCIONES CRÍTICAS SOBRE DISPONIBILIDAD:
-- SOLO PUEDES RECOMENDAR platos que aparecen en la lista anterior
-- SOLO PUEDES ACEPTAR pedidos de platos de la lista anterior
-- Si el cliente pide un plato que NO está en la lista, SIEMPRE:
-  1. Comunica que NO está disponible
-  2. Sugiere alternativas similares del menú disponible
-  3. NUNCA intentes añadir platos no disponibles
-- Usa los nombres EXACTOS de los platos como aparecen arriba
-
-INSTRUCCIONES DE INICIO Y CIERRE:
-- Cuando el pedido esté confirmado y hayas dicho la frase de despedida "Que aproveche" (o similar), DEBES ejecutar inmediatamente la herramienta 'endSession'.
-`;
-  }, [menu, tableNumber]);
-
-  // --- Tool Definitions ---
-  const getMenuTool: FunctionDeclaration = {
-    name: 'getMenu',
-    description: 'Get the full restaurant menu.',
-  };
-
-  const setDinersTool: FunctionDeclaration = {
-    name: 'setDiners',
-    description: 'Set the number of people eating.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        count: { type: Type.NUMBER, description: "Number of people" },
-        name: { type: Type.STRING, description: "Name of the person" }
-      },
-      required: ['count']
-    }
-  }
-
-  const addToOrderTool: FunctionDeclaration = {
-    name: 'addToOrder',
-    description: 'Add an item to the order. Do NOT use this if you are just summarizing what is already in the cart.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        itemName: { type: Type.STRING, description: "Exact name of the menu item" },
-        quantity: { type: Type.NUMBER, description: "Number of items" },
-        notes: { type: Type.STRING, description: "Special instructions" }
-      },
-      required: ['itemName', 'quantity']
-    }
-  };
-
-  const removeFromOrderTool: FunctionDeclaration = {
-    name: 'removeFromOrder',
-    description: 'Remove an item from the current order.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        itemName: { type: Type.STRING, description: "Name of the item to remove" }
-      },
-      required: ['itemName']
-    }
-  };
-
-  const confirmOrderTool: FunctionDeclaration = {
-    name: 'confirmOrder',
-    description: 'Confirm the order and send it to the kitchen.',
-  };
-
-  const endSessionTool: FunctionDeclaration = {
-    name: 'endSession',
-    description: 'Ends the voice session. Call this immediately after saying the closing phrase like "Que aproveche".',
-  };
-
-  const tools = [{ functionDeclarations: [getMenuTool, setDinersTool, addToOrderTool, removeFromOrderTool, confirmOrderTool, endSessionTool] }];
+  const sessionRef = useRef<Promise<any> | null>(null);
 
   const disconnect = useCallback(() => {
-    if (sessionRef.current) {
-      sessionRef.current = null;
-    }
-
+    if (sessionRef.current) sessionRef.current = null;
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
-
     if (inputProcessorRef.current) {
       inputProcessorRef.current.disconnect();
       inputProcessorRef.current = null;
     }
-
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
     }
-
-    sourcesRef.current.forEach(source => source.stop());
-    sourcesRef.current.clear();
-
     setStatus('disconnected');
   }, []);
 
   const connect = useCallback(async () => {
-    const finalApiKey = apiKey?.includes('PLACEHOLDER') ? 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg' : (apiKey || 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg');
+    // FORCE USER API KEY FOR STABILITY
+    const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
 
     try {
       setStatus('connecting');
@@ -205,70 +72,15 @@ INSTRUCCIONES DE INICIO Y CIERRE:
       mediaStreamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey: finalApiKey });
-
-      const speak = async (text: string) => {
-        try {
-          const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_CONFIG.VOICE_ID}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'xi-api-key': ELEVENLABS_CONFIG.API_KEY
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-            })
-          });
-
-          if (!response.ok) return;
-
-          const blob = await response.blob();
-          const buffer = await blob.arrayBuffer();
-          if (!audioContextRef.current) return;
-          const audioBuffer = await audioContextRef.current.decodeAudioData(buffer);
-
-          const source = audioContextRef.current.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(audioContextRef.current.destination);
-
-          sourcesRef.current.add(source);
-          source.start(0);
-          source.onended = () => sourcesRef.current.delete(source);
-        } catch (e) {
-          console.error("ElevenLabs error:", e);
-        }
-      };
-
-      console.log("Initiating ai.live.connect...");
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: "Eres Patxi, un camarero amable. Responde de forma muy breve.",
-          tools: [],
+          systemInstruction: "Eres Patxi, un camarero del Restaurante Garrote. Saluda brevemente y ayuda al cliente.",
         },
         callbacks: {
           onopen: () => {
             setStatus('connected');
-
-            // --- AUTO-GREET IMPLEMENTATION ---
-            setTimeout(() => {
-              if (sessionRef.current) {
-                sessionRef.current.then((session: any) => {
-                  session.send({
-                    clientContent: {
-                      turns: [{
-                        role: 'user',
-                        parts: [{ text: "Hola" }]
-                      }],
-                      turnComplete: true
-                    }
-                  });
-                });
-              }
-            }, 2000);
-
             const source = ac.createMediaStreamSource(stream);
             const processor = ac.createScriptProcessor(4096, 1, 1);
             inputProcessorRef.current = processor;
@@ -277,7 +89,7 @@ INSTRUCCIONES DE INICIO Y CIERRE:
               if (isMuted) return;
               const inputData = e.inputBuffer.getChannelData(0);
               const rms = Math.sqrt(inputData.reduce((s, v) => s + v * v, 0) / inputData.length);
-              setVolumeLevel(rms);
+              setVolumeLevel(rms * 10); // Boost for visualizer
 
               const pcmBlob = createPcmBlob(inputData);
               if (sessionRef.current) {
@@ -290,168 +102,34 @@ INSTRUCCIONES DE INICIO Y CIERRE:
             source.connect(processor);
             processor.connect(ac.destination);
           },
-          onmessage: async (msg: LiveServerMessage) => {
+          onmessage: (msg: any) => {
             if (msg.serverContent?.modelTurn) {
-              const text = msg.serverContent.modelTurn.parts?.find(p => p.text)?.text;
-              if (text) {
-                setLogs(prev => [...prev, { role: 'assistant', text }]);
-                speak(text);
-              }
-            }
-
-            if (msg.toolCall) {
-              const responses = [];
-
-              for (const fc of msg.toolCall.functionCalls) {
-                let result: any = { status: 'ok' };
-
-                if (fc.name === 'getMenu') {
-                  result = {
-                    message: "Menu available in context",
-                    count: menuRef.current.length
-                  };
-                } else if (fc.name === 'setDiners') {
-                  const args = fc.args as any;
-                  onSetDiners(args.count, args.name);
-                  result = { message: `Updated: ${args.count} diners` };
-                  setLogs(prev => [...prev, { role: 'system', text: `👥 ${args.count} comensales` }]);
-                } else if (fc.name === 'addToOrder') {
-                  const args = fc.args as any;
-
-                  const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                  const targetName = normalize(args.itemName);
-
-                  // 1. Precise Match (Normalized)
-                  let item = menuRef.current.find(m =>
-                    m.available &&
-                    normalize(m.name) === targetName
-                  );
-
-                  // 2. Fuzzy Match (Includes)
-                  if (!item) {
-                    item = menuRef.current.find(m =>
-                      m.available &&
-                      normalize(m.name).includes(targetName)
-                    );
-                  }
-
-                  // 3. Reverse Fuzzy (Target includes Item name)
-                  if (!item) {
-                    item = menuRef.current.find(m =>
-                      m.available &&
-                      targetName.includes(normalize(m.name))
-                    );
-                  }
-
-                  // 4. Word-based Matching (Heuristic for Plurals/Parts)
-                  if (!item) {
-                    const targetWords = targetName.split(' ').filter(w => w.length > 2);
-                    item = menuRef.current.find(m => {
-                      if (!m.available) return false;
-                      const nameWords = normalize(m.name).split(' ');
-                      return targetWords.some(w => nameWords.includes(w) || nameWords.some(nw => nw.startsWith(w) || w.startsWith(nw)));
-                    });
-                  }
-
-                  if (item) {
-                    onAddToCart(item, args.quantity, args.notes);
-                    result = {
-                      success: true,
-                      message: `Added ${args.quantity}x ${item.name}`
-                    };
-                    setLogs(prev => [...prev, { role: 'system', text: `✓ Añadido: ${args.quantity}x ${item.name}` }]);
-                  } else {
-                    result = {
-                      success: false,
-                      error: "Item not found in menu",
-                    };
-                    setLogs(prev => [...prev, { role: 'error', text: `✗ No encontré: "${args.itemName}"` }]);
-                  }
-                } else if (fc.name === 'removeFromOrder') {
-                  const args = fc.args as any;
-                  onRemoveFromOrder(args.itemName);
-                  result = { success: true, message: `Removed: ${args.itemName}` };
-                  setLogs(prev => [...prev, { role: 'system', text: `🗑️ Eliminado: ${args.itemName}` }]);
-
-                } else if (fc.name === 'confirmOrder') {
-                  const currentCart = cartItemsRef.current;
-                  const currentDiners = dinersCountRef.current;
-                  const currentName = clientNameRef.current;
-
-                  if (!currentCart || currentCart.length === 0) {
-                    result = { success: false, error: "Cart is empty" };
-                    setLogs(prev => [...prev, { role: 'error', text: `✗ Carrito vacío` }]);
-                  } else {
-                    const success = await onConfirmOrder(currentDiners, currentName, currentCart);
-
-                    if (success) {
-                      result = { success: true, message: "Order sent to kitchen" };
-                      setLogs(prev => [...prev, { role: 'system', text: `✓ Pedido confirmado y enviado` }]);
-                    } else {
-                      result = { success: false, error: "Failed to send order" };
-                      setLogs(prev => [...prev, { role: 'error', text: `✗ Fallo al enviar` }]);
-                    }
-                  }
-                } else if (fc.name === 'endSession') {
-                  result = { success: true, message: "Ending session" };
-                  setLogs(prev => [...prev, { role: 'system', text: `👋 Finalizando llamada...` }]);
-
-                  setTimeout(() => {
-                    disconnect();
-                  }, 4000);
-                }
-
-                responses.push({
-                  id: fc.id,
-                  name: fc.name,
-                  response: { result }
-                });
-              }
-
-              if (sessionRef.current) {
-                sessionRef.current.then((session: any) => {
-                  session.sendToolResponse({ functionResponses: responses });
-                });
-              }
-            }
-
-            if (msg.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => s.stop());
-              sourcesRef.current.clear();
+              const text = msg.serverContent.modelTurn.parts?.find((p: any) => p.text)?.text;
+              if (text) setLogs(prev => [...prev, { role: 'assistant', text }]);
             }
           },
           onclose: () => {
-            console.log("Session connection closed");
             disconnect();
           },
           onerror: (err) => {
-            console.error("Session Error:", err);
+            console.error("Live Session Error:", err);
             disconnect();
-            setStatus('error');
           }
         }
       });
 
       sessionRef.current = sessionPromise;
 
-    } catch (error: any) {
-      console.error("Connection Failed:", error);
+    } catch (error) {
+      console.error("Connect Failure:", error);
       setStatus('error');
       disconnect();
     }
-  }, [apiKey, enhancedSystemInstruction, isMuted, disconnect, onAddToCart, onRemoveFromOrder, onConfirmOrder, onSetDiners]);
+  }, [isMuted, disconnect]);
 
   useEffect(() => {
     return () => disconnect();
   }, [disconnect]);
 
-  return {
-    status,
-    connect,
-    disconnect,
-    isMuted,
-    setIsMuted,
-    volumeLevel,
-    logs
-  };
+  return { status, connect, disconnect, isMuted, setIsMuted, volumeLevel, logs };
 };
