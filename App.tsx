@@ -211,7 +211,6 @@ function App() {
     isMuted,
     setIsMuted,
     volumeLevel,
-    volumeLevel,
     logs,
     lastError
   } = useLiveSession({

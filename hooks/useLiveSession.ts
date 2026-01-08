@@ -139,5 +139,9 @@ export const useLiveSession = ({
     return () => disconnect();
   }, [disconnect]);
 
-  return { status, connect, disconnect, isMuted, setIsMuted, volumeLevel, logs };
+  return {
+    status, connect, disconnect, isMuted, setIsMuted, volumeLevel: volume,
+    logs,
+    lastError
+  };
 };
