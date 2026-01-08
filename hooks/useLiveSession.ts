@@ -132,6 +132,7 @@ export const useLiveSession = ({
         model: 'models/gemini-2.0-flash-exp',
         config: {
           responseModalities: [Modality.TEXT],
+          generationConfig: { temperature: 0.7 },
           systemInstruction: SYSTEM_INSTRUCTION + `\n\n[CONTEXTO ACTUAL: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
           tools: [
             {
