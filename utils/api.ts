@@ -251,25 +251,7 @@ async function sendToN8N(payload: any): Promise<boolean> {
     }
 }
 
-    } catch (e) {
-    console.error("❌ N8N Network Error:", e);
-    // Fallback: no-cors (Opaque request). We won't know if it succeeded, but it bypasses browser blockers.
-    try {
-        console.log("⚠️ Retrying with no-cors...");
-        await fetch(url, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: body
-        });
-        console.log("✅ N8N Opaque Sent (Assume Success)");
-        return true;
-    } catch (e2) {
-        console.error("❌ N8N Retry Failed:", e2);
-        return false;
-    }
-}
-}
+
 
 export async function sendOrderToSheets(order: ConfirmedOrder): Promise<boolean> {
     // 1. Update local state immediately (Optimistic UI)
