@@ -175,118 +175,115 @@ export const useLiveSession = ({
             if (msg.serverContent?.modelTurn) {
               const parts = msg.serverContent.modelTurn.parts || [];
 
-              if (msg.serverContent?.modelTurn) {
-                const parts = msg.serverContent.modelTurn.parts || [];
-
-                // Handle Text (Log + Speak)
-                const textPart = parts.find((p: any) => p.text);
-                if (textPart) {
-                  textBufferRef.current += textPart.text;
-                }
+              // Handle Text (Log + Speak)
+              const textPart = parts.find((p: any) => p.text);
+              if (textPart) {
+                textBufferRef.current += textPart.text;
               }
+            }
 
-              if (msg.serverContent?.turnComplete) {
-                if (textBufferRef.current.trim()) {
-                  const finalText = textBufferRef.current;
-                  setLogs(prev => [...prev, { role: 'assistant', text: finalText }]);
+            if (msg.serverContent?.turnComplete) {
+              if (textBufferRef.current.trim()) {
+                const finalText = textBufferRef.current;
+                setLogs(prev => [...prev, { role: 'assistant', text: finalText }]);
 
-                  // BROWSER NATIVE TTS
-                  if (!isMuted) {
-                    const utterance = new SpeechSynthesisUtterance(finalText);
-                    utterance.lang = 'es-ES'; // Force Spanish
-                    utterance.rate = 1.0;
-                    // Optional: Select a specific voice if available
-                    const voices = window.speechSynthesis.getVoices();
-                    const esVoice = voices.find(v => v.lang.includes('es-EC') || v.lang.includes('es-ES'));
-                    if (esVoice) utterance.voice = esVoice;
+                // BROWSER NATIVE TTS
+                if (!isMuted) {
+                  const utterance = new SpeechSynthesisUtterance(finalText);
+                  utterance.lang = 'es-ES'; // Force Spanish
+                  utterance.rate = 1.0;
+                  // Optional: Select a specific voice if available
+                  const voices = window.speechSynthesis.getVoices();
+                  const esVoice = voices.find(v => v.lang.includes('es-EC') || v.lang.includes('es-ES'));
+                  if (esVoice) utterance.voice = esVoice;
 
-                    window.speechSynthesis.speak(utterance);
+                  window.speechSynthesis.speak(utterance);
+                }
+
+                textBufferRef.current = '';
+              }
+            }
+
+            // TOOL EXECUTION
+            if (msg.toolCall) {
+              console.log("🛠️ Tool Call Received:", JSON.stringify(msg.toolCall, null, 2));
+
+              msg.toolCall.functionCalls.forEach((fc: any) => {
+                const args = fc.args;
+                let result: { success: boolean; error?: string } = { success: true };
+
+                console.log(`🔨 Executing: ${fc.name}`, args);
+
+                if (fc.name === 'setDiners') {
+                  onSetDiners(args.count);
+                } else if (fc.name === 'addToOrder') {
+                  // Clean args
+                  const searchName = args.itemName.trim().toLowerCase();
+
+                  // 1. Exact Match
+                  let item = menu.find(m => m.name.toLowerCase() === searchName);
+
+                  // 2. Fuzzy / Partial Match
+                  if (!item) {
+                    item = menu.find(m => m.name.toLowerCase().includes(searchName) || searchName.includes(m.name.toLowerCase()));
                   }
 
-                  textBufferRef.current = '';
-                }
-              }
+                  // 3. Fallback: Check synonyms or simplified names (e.g. "Gildas" -> "Gilda")
+                  if (!item) {
+                    // Remove trailing 's' or 'es' for plural
+                    const singular = searchName.replace(/s$/, '').replace(/es$/, '');
+                    item = menuRef.current.find(m => m.name.toLowerCase().includes(singular));
+                  }
 
-              // TOOL EXECUTION
-              if (msg.toolCall) {
-                console.log("🛠️ Tool Call Received:", JSON.stringify(msg.toolCall, null, 2));
-
-                msg.toolCall.functionCalls.forEach((fc: any) => {
-                  const args = fc.args;
-                  let result: { success: boolean; error?: string } = { success: true };
-
-                  console.log(`🔨 Executing: ${fc.name}`, args);
-
-                  if (fc.name === 'setDiners') {
-                    onSetDiners(args.count);
-                  } else if (fc.name === 'addToOrder') {
-                    // Clean args
-                    const searchName = args.itemName.trim().toLowerCase();
-
-                    // 1. Exact Match
-                    let item = menu.find(m => m.name.toLowerCase() === searchName);
-
-                    // 2. Fuzzy / Partial Match
-                    if (!item) {
-                      item = menu.find(m => m.name.toLowerCase().includes(searchName) || searchName.includes(m.name.toLowerCase()));
-                    }
-
-                    // 3. Fallback: Check synonyms or simplified names (e.g. "Gildas" -> "Gilda")
-                    if (!item) {
-                      // Remove trailing 's' or 'es' for plural
-                      const singular = searchName.replace(/s$/, '').replace(/es$/, '');
-                      item = menuRef.current.find(m => m.name.toLowerCase().includes(singular));
-                    }
-
-                    if (item) {
-                      console.log("✅ Item Found & Added:", item.name);
-                      onAddToCart(item, args.quantity, args.notes);
+                  if (item) {
+                    console.log("✅ Item Found & Added:", item.name);
+                    onAddToCart(item, args.quantity, args.notes);
+                  } else {
+                    console.error("❌ Item NOT Found in Menu:", searchName);
+                    result = { success: false, error: 'Item not found in menu. Please ask user to clarify.' };
+                  }
+                } else if (fc.name === 'confirmOrder') {
+                  console.log("✅ Confirming Order...");
+                  onConfirmOrder(dinersCount, clientName).then(success => {
+                    if (success) {
+                      console.log("🚀 Order Sent to Webhook/Sheet");
                     } else {
-                      console.error("❌ Item NOT Found in Menu:", searchName);
-                      result = { success: false, error: 'Item not found in menu. Please ask user to clarify.' };
+                      console.error("❌ Failed to send order");
                     }
-                  } else if (fc.name === 'confirmOrder') {
-                    console.log("✅ Confirming Order...");
-                    onConfirmOrder(dinersCount, clientName).then(success => {
-                      if (success) {
-                        console.log("🚀 Order Sent to Webhook/Sheet");
-                      } else {
-                        console.error("❌ Failed to send order");
-                      }
-                    });
-                  }
+                  });
+                }
 
-                  if (sessionRef.current) {
-                    sessionRef.current.then((session: any) => {
-                      session.sendToolResponse({
-                        functionResponses: [
-                          {
-                            id: fc.id,
-                            response: { result }
-                          }
-                        ]
-                      });
+                if (sessionRef.current) {
+                  sessionRef.current.then((session: any) => {
+                    session.sendToolResponse({
+                      functionResponses: [
+                        {
+                          id: fc.id,
+                          response: { result }
+                        }
+                      ]
                     });
-                  }
-                });
-              }
-            },
-            onclose: (ev?: { code: number; reason: string }) => {
-              console.log("❌ La sesión se ha CERRADO (onclose).", ev?.code, ev?.reason);
-              setLastError({ code: ev?.code || 0, reason: ev?.reason || 'Unknown reason', time: new Date().toLocaleTimeString() });
-              setStatus('disconnected'); // Assuming setIsConnected(false) maps to setStatus('disconnected')
-              // setIsSending(false); // This state is not defined in the current context
-              disconnect();
-            },
-              onerror: (err) => {
-                console.error("Live Session Error:", err);
-                setLastError({ code: 0, reason: String(err), time: new Date().toLocaleTimeString() });
-                setStatus('error'); // Assuming setIsConnected(false) maps to setStatus('error')
-                // setIsSending(false); // This state is not defined in the current context
-                disconnect();
-              }
+                  });
+                }
+              });
+            }
+          },
+          onclose: (ev?: { code: number; reason: string }) => {
+            console.log("❌ La sesión se ha CERRADO (onclose).", ev?.code, ev?.reason);
+            setLastError({ code: ev?.code || 0, reason: ev?.reason || 'Unknown reason', time: new Date().toLocaleTimeString() });
+            setStatus('disconnected'); // Assuming setIsConnected(false) maps to setStatus('disconnected')
+            // setIsSending(false); // This state is not defined in the current context
+            disconnect();
+          },
+          onerror: (err) => {
+            console.error("Live Session Error:", err);
+            setLastError({ code: 0, reason: String(err), time: new Date().toLocaleTimeString() });
+            setStatus('error'); // Assuming setIsConnected(false) maps to setStatus('error')
+            // setIsSending(false); // This state is not defined in the current context
+            disconnect();
           }
-        });
+        }
+      });
 
       sessionRef.current = sessionPromise;
 
