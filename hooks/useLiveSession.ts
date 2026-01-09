@@ -109,8 +109,11 @@ export const useLiveSession = ({
         model: 'models/gemini-2.0-flash-exp',
         config: {
           responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
+          },
           generationConfig: { temperature: 0.7 },
-          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. CONVERSACIÓN: Sé natural. Si el usuario hace una pausa larga, pregunta. No esperes eternamente.\n2. CONFIRMACIÓN COMENSALES: Si el usuario dice 'somos X', RESPONDE SIEMPRE: '¡Oído! Mesa para X. ¿Qué os apetece?'.\n3. PEDIDOS: Si piden algo, usa la herramienta 'addToOrder' y CONFIRMA: 'Anotado X'.\n4. CIERRE: Si dicen 'eso es todo', usa 'confirmOrder' y DESPÍDETE: '¡Marchando!'.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
+          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. VOZ: Habla en Español de España (es-ES) neutro. NO uses acento latino ni inglés.\n2. HERRAMIENTAS: ERES UN CAMARERO, NO UN CHATBOT. TU PRINCIPAL FUNCIÓN ES ANOTAR.\n   - SI EL USUARIO PIDE ALGO ("quiero unas bravas"), LLAMA INMEDIATAMENTE A 'addToOrder'.\n   - NO digas "tomo nota" si no has llamado a la herramienta.\n   - Solo confirma verbalmente "Anotado X" DESPUÉS de ver el resultado de la herramienta.\n3. SILENCIO: Si el usuario calla, espera. Si habla, cállate.\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}].`,
           tools: [
             {
               functionDeclarations: [
