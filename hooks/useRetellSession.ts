@@ -27,7 +27,7 @@ export const useRetellSession = ({
     const currentCallIdRef = useRef<string | null>(null);
 
     // SHADOW LOGIC REFS
-    const processedTextRef = useRef<Set<string>>(new Set());
+    const processedActionsRef = useRef<Set<string>>(new Set());
     const menuRef = useRef(menu);
 
     // Update refs
@@ -35,138 +35,155 @@ export const useRetellSession = ({
     useEffect(() => {
         menuRef.current = menu;
         propsRef.current = { onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder };
+        console.log('📋 Menu updated, items:', menu.length);
     }, [menu, onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder]);
 
-    const processTranscriptForOrders = (role: 'user' | 'agent', text: string) => {
-        if (!text || processedTextRef.current.has(text)) return;
+    const processTranscriptForOrders = useCallback((role: 'user' | 'agent', text: string) => {
+        console.log(`🔍 Processing transcript [${role}]:`, text);
 
-        // CRITICAL FIX: Retell sends partials like "Mar", "Marchan", "Marchando".
-        // We must avoid re-triggering. However, text usually grows. 
-        // Strategy: Only process if it contains a completely NEW keyword sentence part?
-        // Better: processedTextRef stores the EXACT full text. If we see "Marchando", we handle it.
-        // If we later see "Marchando una hamburguesa", that's new text but contains old text.
-        // Problem: "Marchando" might trigger, then "Marchando una..." triggers again.
-        // Solution: Only trigger on KEY PHRASES, and ensure we haven't triggered for this specific "turn" or "itemId" recently?
-        // Simplified: We store the "Signature" of the action (e.g. "add-hamburguesa-timestamp")? No.
+        if (!text) {
+            console.log('⚠️ Empty text, skipping');
+            return;
+        }
 
-        // We will rely on Retell's 'is_final' flag if available, but SDK events are basic here.
-        // let's try a simple length check or "contains" check against previous logs?
-        // For now, I will use a Set to ignore EXACT duplicates (which solves the "repeat update" issue).
-        // BUT for the "Growing Sentence" issue ("Marchando" -> "Marchando una"), we need to be careful.
-        // Only trigger if the keyword appeared in the NEW part? Hard.
-
-        // NEW STRATEGY: Debounce by time per Item?
-        // Or just look for "Confirmación CLARA".
-
-        processedTextRef.current.add(text);
         const lower = text.toLowerCase();
+        const normalized = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove accents
 
-        // AGENT ACTIONS (He confirms)
-        if (role === 'agent') {
-            const negation = ['no tenemos', 'no queda', 'lo siento', 'error'];
-            if (negation.some(k => lower.includes(k))) return;
+        // ONLY PROCESS AGENT RESPONSES (when he confirms)
+        if (role !== 'agent') {
+            console.log('👤 User message, skipping Shadow Logic');
+            return;
+        }
 
-            // 1. CONFIRM ORDER (Kitchen)
-            if (lower.includes('marchando a cocina') || lower.includes('pedido confirmado') || lower.includes('envío a cocina')) {
-                if (!processedTextRef.current.has('action_confirm_' + text.substring(0, 10))) {
-                    console.log("🚀 Shadow Logic: CONFIRM ORDER");
-                    processedTextRef.current.add('action_confirm_' + text.substring(0, 10)); // Lock this action for this text
-                    propsRef.current.onConfirmOrder(1, 'Cliente');
-                }
+        console.log('🤖 Agent message detected');
+
+        // Check for negation first
+        const negations = ['no tenemos', 'no queda', 'lo siento', 'no hay'];
+        if (negations.some(neg => lower.includes(neg))) {
+            console.log('❌ Negation detected, skipping');
+            return;
+        }
+
+        // 1. CONFIRM ORDER (to kitchen)
+        const confirmKeywords = ['marchando a cocina', 'envio a cocina', 'pedido confirmado', 'lo confirmo'];
+        if (confirmKeywords.some(k => lower.includes(k))) {
+            const actionKey = `confirm_${Date.now()}`;
+            if (!processedActionsRef.current.has(actionKey)) {
+                console.log('✅ CONFIRM ORDER TRIGGERED');
+                processedActionsRef.current.add(actionKey);
+                propsRef.current.onConfirmOrder(1, 'Cliente');
             }
+        }
 
-            // 2. ADD TO ORDER
+        // 2. ADD TO ORDER - Check each menu item
+        const addKeywords = ['marchando', 'anoto', 'apunto', 'añado', 'perfecto', 'vale'];
+        const hasAddKeyword = addKeywords.some(k => lower.includes(k));
+
+        if (hasAddKeyword) {
+            console.log('🎯 Add keyword detected, checking menu items...');
+            console.log('📋 Current menu:', menuRef.current.map(m => m.name));
+
             menuRef.current.forEach(item => {
-                const hasKeyword = ['marchando', 'anoto', 'apunto', 'añado', 'aquí tienes'].some(k => lower.includes(k));
-                const hasItem = lower.includes(item.name.toLowerCase());
+                const itemNameLower = item.name.toLowerCase();
+                const itemNameNormalized = itemNameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-                if (hasKeyword && hasItem) {
-                    // LOCK: Don't add same item for this specific text line
-                    const lockKey = `add_${item.id}_${text.length}`;
-                    // Using text.length helps: if text grows ("Marchando" -> "Marchando una"), length changes.
-                    // But we want to avoid double adding. 
-                    // If "Marchando una hamburguesa" (len 25) adds it.
-                    // Then "Marchando una hamburguesa y" (len 27). We don't want to add again.
+                // Multiple matching strategies
+                const exactMatch = lower.includes(itemNameLower);
+                const normalizedMatch = normalized.includes(itemNameNormalized);
 
-                    // Smart Lock: Check if we recently added this item?
-                    // Let's rely on the fact that Retell usually sends stable chunks if we are lucky.
-                    // Actually, best fix is to check if the *previous* processed text for this turn ALREADY contained the item match.
+                // Partial word matching (e.g., "bravas" matches "Patatas Bravas")
+                const itemWords = itemNameLower.split(' ');
+                const partialMatch = itemWords.some(word => word.length > 3 && lower.includes(word));
 
-                    // FAILSAFE: Only add if the text specifically matches a pattern we haven't "consumed"?
-                    // Let's stick to the lock key based on text content. Ideally we'd use utterance ID.
+                if (exactMatch || normalizedMatch || partialMatch) {
+                    const actionKey = `add_${item.id}_${text.substring(0, 20)}`;
 
-                    if (!processedTextRef.current.has(lockKey)) {
-                        console.log("🚀 Shadow Logic: ADD", item.name);
-                        processedTextRef.current.add(lockKey);
-                        // Check if item already exists in cart matches? (User complained about duplicates)
-                        // onAddToCart usually allows duplicates. 
-                        // We will assume the user wants 1 unless specific number derived (hard to parse "2").
+                    if (!processedActionsRef.current.has(actionKey)) {
+                        console.log(`✅ ADDING ITEM: ${item.name}`);
+                        processedActionsRef.current.add(actionKey);
                         propsRef.current.onAddToCart(item, 1);
+                    } else {
+                        console.log(`⏭️ Already added: ${item.name}`);
                     }
                 }
             });
-
-            // 3. REMOVE FROM ORDER ("Quito", "Borro")
-            if (lower.includes('quito') || lower.includes('borro') || lower.includes('elimino')) {
-                menuRef.current.forEach(item => {
-                    if (lower.includes(item.name.toLowerCase())) {
-                        const lockKey = `rem_${item.id}_${text.length}`;
-                        if (!processedTextRef.current.has(lockKey)) {
-                            console.log("🚀 Shadow Logic: REMOVE", item.name);
-                            processedTextRef.current.add(lockKey);
-                            propsRef.current.onRemoveFromOrder(item.name);
-                        }
-                    }
-                });
-            }
         }
-    };
+
+        // 3. REMOVE FROM ORDER
+        const removeKeywords = ['quito', 'borro', 'elimino', 'sin'];
+        if (removeKeywords.some(k => lower.includes(k))) {
+            console.log('🗑️ Remove keyword detected');
+            menuRef.current.forEach(item => {
+                if (lower.includes(item.name.toLowerCase())) {
+                    const actionKey = `remove_${item.id}_${text.substring(0, 20)}`;
+                    if (!processedActionsRef.current.has(actionKey)) {
+                        console.log(`🗑️ REMOVING ITEM: ${item.name}`);
+                        processedActionsRef.current.add(actionKey);
+                        propsRef.current.onRemoveFromOrder(item.name);
+                    }
+                }
+            });
+        }
+    }, []);
 
     useEffect(() => {
+        console.log('🔌 Initializing Retell Client');
         const client = new RetellWebClient();
 
         client.on('call_started', () => {
+            console.log('📞 Call started');
             setStatus('connected');
-            processedTextRef.current.clear();
+            processedActionsRef.current.clear();
         });
+
         client.on('call_ended', () => {
+            console.log('📞 Call ended');
             setStatus('disconnected');
             currentCallIdRef.current = null;
         });
+
         client.on('error', (err) => {
-            console.error("❌ Retell Error:", err);
+            console.error('❌ Retell Error:', err);
             setLastError(String(err));
-            setStatus('error'); // This might trigger red screen if 'error' style exists
+            setStatus('error');
         });
 
         client.on('update', (update) => {
+            console.log('📨 Retell update received:', update);
+
             if (update.transcript) {
                 const lastMsg = update.transcript[update.transcript.length - 1];
                 if (lastMsg) {
+                    console.log('💬 New transcript message:', lastMsg);
                     const role = lastMsg.role === 'agent' ? 'assistant' : 'user';
+
                     setLogs(prev => {
                         const last = prev[prev.length - 1];
                         if (last && last.text === lastMsg.content) {
-                            // Update existing log entry with fuller text
-                            // (Important for UI to not flicker)
-                            return prev.map((p, i) => i === prev.length - 1 ? { ...p, text: lastMsg.content } : p);
+                            return prev;
                         }
                         return [...prev, { role, text: lastMsg.content }];
                     });
-                    processTranscriptForOrders(lastMsg.role, lastMsg.content); // Pass latest content
+
+                    // TRIGGER SHADOW LOGIC
+                    processTranscriptForOrders(lastMsg.role, lastMsg.content);
                 }
             }
         });
 
         retellClientRef.current = client;
-        return () => client.stopCall();
-    }, []);
+        return () => {
+            console.log('🔌 Cleaning up Retell Client');
+            client.stopCall();
+        };
+    }, [processTranscriptForOrders]);
 
     const connect = useCallback(async () => {
         try {
+            console.log('🔗 Connecting to Retell...');
             setStatus('connecting');
             setLastError(null);
-            processedTextRef.current.clear();
+            processedActionsRef.current.clear();
 
             const response = await fetch('https://api.retellai.com/v2/create-web-call', {
                 method: 'POST',
@@ -177,17 +194,27 @@ export const useRetellSession = ({
                 body: JSON.stringify({ agent_id: AGENT_ID })
             });
 
-            if (!response.ok) throw new Error(await response.text());
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Failed to create call:', errorText);
+                throw new Error(errorText);
+            }
+
             const data = await response.json();
-            if (retellClientRef.current) await retellClientRef.current.startCall({ accessToken: data.access_token });
+            console.log('✅ Access token received');
+
+            if (retellClientRef.current) {
+                await retellClientRef.current.startCall({ accessToken: data.access_token });
+            }
         } catch (err: any) {
-            console.error("Connection Failed:", err);
+            console.error('❌ Connection Failed:', err);
             setLastError(err.message);
             setStatus('error');
         }
     }, []);
 
     const disconnect = useCallback(() => {
+        console.log('🔌 Disconnecting...');
         if (retellClientRef.current) retellClientRef.current.stopCall();
     }, []);
 
