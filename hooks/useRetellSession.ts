@@ -76,7 +76,28 @@ export const useRetellSession = ({
         }
 
         // 2. ADD TO ORDER - Check each menu item
-        const addKeywords = ['marchando', 'anoto', 'apunto', 'añado', 'perfecto', 'vale'];
+        // BUT FIRST: Check if this is a RECAP (summary) rather than a new confirmation
+        const recapPhrases = [
+            'entonces tenemos',
+            'recapitulo',
+            'resumiendo',
+            'en total',
+            'para confirmar',
+            'correcto?',
+            'es correcto',
+            'todo bien',
+            'perfecto entonces',
+            'tenemos entonces'
+        ];
+
+        const isRecap = recapPhrases.some(phrase => lower.includes(phrase));
+
+        if (isRecap) {
+            console.log('📋 RECAP DETECTED - Skipping item addition to avoid duplicates');
+            return; // Don't add items during recaps
+        }
+
+        const addKeywords = ['marchando', 'anoto', 'apunto', 'añado'];
         const hasAddKeyword = addKeywords.some(k => lower.includes(k));
 
         if (hasAddKeyword) {
