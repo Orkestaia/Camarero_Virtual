@@ -201,8 +201,7 @@ function App() {
   };
 
   // --- HOOK ---
-  const geminiKey = 'AIzaSyCbVKa_AK1zcq6Gr8Q78PetZ1ob_Whjj8Y';
-
+  // Call the Retell Hook
   const {
     status,
     connect,
@@ -210,18 +209,14 @@ function App() {
     isMuted,
     setIsMuted,
     volumeLevel,
-    logs
-  } = useLiveSession({
-    apiKey: geminiKey,
-    tableNumber,
-    menu,
-    onAddToCart: handleAddToCart,
-    onRemoveFromOrder: handleRemoveFromOrder,
-    onConfirmOrder: handleConfirmOrder,
-    onSetDiners: handleSetDiners,
-    cartItems,
-    dinersCount,
-    clientName
+    logs,
+    lastError
+  } = useRetellSession({
+    menu, // Still passed, though Retell Agent needs server webhook to see it logic-wise
+    onAddToCart: (item, qty, notes) => handleAddToCart(item, qty, notes),
+    onRemoveFromOrder: (name) => handleRemoveFromOrder(name),
+    onSetDiners: (count) => handleSetDiners(count),
+    onConfirmOrder: (diners, name) => handleConfirmOrder(diners, name || 'Cliente'),
   });
 
   const totalPrice = cartItems.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
@@ -272,7 +267,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v14.0 (Retell Logic + OpenAI)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v15.0 (Retell Agent Official)</p>
         </div>
       </div>
     );
