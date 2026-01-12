@@ -1,7 +1,59 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { createPcmBlob } from '../utils/audio';
+import { createPcmBlob } from '../utils/audio'; // Removed AudioPlayer import if it was external, we'll inline logic or use utils
 import { SYSTEM_INSTRUCTION } from '../constants';
+
+// INLINE AUDIO PLAYER CLASS (To ensure no dependency issues)
+class AudioPlayer {
+  queue: Float32Array[] = [];
+  isPlaying = false;
+  ctx: AudioContext;
+  rate: number;
+
+  constructor(ctx: AudioContext, rate: number = 24000) {
+    this.ctx = ctx;
+    this.rate = rate; // Gemini 2.0 Flash returns 24kHz usually
+  }
+
+  add16BitPCM(buffer: ArrayBuffer) {
+    // Convert Int16 -> Float32
+    const int16 = new Int16Array(buffer);
+    const float32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) {
+      float32[i] = int16[i] / 32768.0;
+    }
+    this.queue.push(float32);
+    this.playNext();
+  }
+
+  playNext() {
+    if (this.isPlaying || this.queue.length === 0) return;
+    this.isPlaying = true;
+
+    const chunk = this.queue.shift();
+    if (!chunk) {
+      this.isPlaying = false;
+      return;
+    }
+
+    const audioBuffer = this.ctx.createBuffer(1, chunk.length, this.rate);
+    audioBuffer.getChannelData(0).set(chunk);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(this.ctx.destination);
+    source.onended = () => {
+      this.isPlaying = false;
+      this.playNext();
+    };
+    source.start();
+  }
+
+  stop() {
+    this.queue = [];
+    this.isPlaying = false;
+  }
+}
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -34,90 +86,12 @@ export const useLiveSession = ({
   const [lastError, setLastError] = useState<{ code: number; reason: string; time: string } | null>(null);
   const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
 
-  const textBufferRef = useRef<string>('');
-  const speechQueueRef = useRef<string[]>([]);
-  const isSpeakingRef = useRef<boolean>(false);
-
+  // Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const sessionRef = useRef<Promise<any> | null>(null);
-
-  // --- OPENAI TTS LOGIC ---
-  const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || ''; // Securely load from Env
-
-  const processSpeechQueue = useCallback(async () => {
-    if (isSpeakingRef.current || speechQueueRef.current.length === 0 || !audioContextRef.current) return;
-
-    isSpeakingRef.current = true;
-    const textToSpeak = speechQueueRef.current.shift();
-
-    try {
-      const response = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'tts-1',
-          input: textToSpeak,
-          voice: 'onyx', // Deep male voice
-          response_format: 'mp3',
-          speed: 1.0
-        })
-      });
-
-      if (!response.ok) {
-        const err = await response.text();
-        console.error("OpenAI TTS Error:", err);
-        throw new Error("OpenAI TTS Failed");
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
-
-      source.onended = () => {
-        isSpeakingRef.current = false;
-        processSpeechQueue();
-      };
-
-      source.start(0);
-
-    } catch (error) {
-      console.error("Speech Error:", error);
-      isSpeakingRef.current = false;
-      processSpeechQueue();
-    }
-  }, []);
-
-  const speak = useCallback((text: string) => {
-    if (!text) return;
-    speechQueueRef.current.push(text);
-    processSpeechQueue();
-  }, [processSpeechQueue]);
-
-  const disconnect = useCallback(() => {
-    if (sessionRef.current) sessionRef.current = null;
-    speechQueueRef.current = [];
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (inputProcessorRef.current) {
-      inputProcessorRef.current.disconnect();
-      inputProcessorRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    setStatus('disconnected');
-  }, []);
 
   // REFS FOR PROPS
   const menuRef = useRef(menu);
@@ -136,14 +110,32 @@ export const useLiveSession = ({
     clientNameRef.current = clientName;
   }, [menu, onAddToCart, onSetDiners, onConfirmOrder, dinersCount, clientName]);
 
+  const disconnect = useCallback(() => {
+    if (sessionRef.current) sessionRef.current = null;
+    audioPlayerRef.current?.stop();
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (inputProcessorRef.current) {
+      inputProcessorRef.current.disconnect();
+      inputProcessorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    setStatus('disconnected');
+  }, []);
+
   const connect = useCallback(async () => {
-    const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
+    const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg'; // Legacy Hardcoded for Reliability
 
     try {
       setStatus('connecting');
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ac = new AudioContextClass({ sampleRate: 16000 });
+      const ac = new AudioContextClass({ sampleRate: 16000 }); // Worklet usually 16k
       await ac.resume();
       audioContextRef.current = ac;
 
@@ -152,19 +144,36 @@ export const useLiveSession = ({
       });
       mediaStreamRef.current = stream;
 
+      // INIT AUDIO PLAYER
+      const player = new AudioPlayer(ac, 24000); // 24kHz matches Gemini Flash response
+      audioPlayerRef.current = player;
+
       const ai = new GoogleGenAI({ apiKey: finalApiKey });
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.TEXT], // TEXT ONLY FOR RELIABILITY
+          responseModalities: [Modality.AUDIO], // NATIVE AUDIO IS BACK
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } // "Kore" = Standard Male
+          },
           generationConfig: { temperature: 0.7 },
-          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CRÍTICAS]\n1. VOZ: Eres Patxi, camarero del Jaizkibel.\n2. COMANDAS: Tu prioridad ABSOLUTA es anotar pedidos. Si el usuario pide algo, USA 'addToOrder'.\n3. INTELIGENCIA: Si el usuario pide "bravas" y no está exacto, usa 'addToOrder' con "Patatas Bravas" (o lo más parecido). NO preguntes "qué bravas", ANOTA lo que creas mejor.`,
+          // SIMPLIFIED PROMPT FOR NATURAL FLOW
+          systemInstruction: `Eres Patxi, el camarero del Bar Jaizkibel.
+Tu voz debe ser amable, masculina y profesional.
+Tu objetivo principal es TOMAR NOTA de los pedidos y enviarlos a cocina.
+
+REGLAS DE ORO:
+1. SIEMPRE que el cliente pida algo, usa la herramienta 'addToOrder'. ES TU PRIORIDAD.
+2. Si no entiendes el plato exacto, busca el más parecido o anótalo como puedas.
+3. Sé breve. No hables por hablar. Confirma el pedido y listo.
+4. Si hablan de número de personas, usa 'setDiners'.
+`,
           tools: [
             {
               functionDeclarations: [
                 {
                   name: "setDiners",
-                  description: "Número de personas.",
+                  description: "Establece el número de comensales.",
                   parameters: {
                     type: "OBJECT" as any,
                     properties: { count: { type: "INTEGER" as any } },
@@ -173,7 +182,7 @@ export const useLiveSession = ({
                 },
                 {
                   name: "addToOrder",
-                  description: "Añadir item.",
+                  description: "Añade un plato a la comanda.",
                   parameters: {
                     type: "OBJECT" as any,
                     properties: {
@@ -186,7 +195,7 @@ export const useLiveSession = ({
                 },
                 {
                   name: "confirmOrder",
-                  description: "Enviar a cocina.",
+                  description: "Envía el pedido.",
                   parameters: { type: "OBJECT" as any, properties: {} }
                 }
               ]
@@ -212,26 +221,20 @@ export const useLiveSession = ({
             processor.connect(ac.destination);
           },
           onmessage: (msg: any) => {
-            // HANDLE TEXT RESPONSE
+            // PLAY AUDIO
             if (msg.serverContent?.modelTurn) {
               const parts = msg.serverContent.modelTurn.parts || [];
-              const textPart = parts.find((p: any) => p.text);
-              if (textPart) {
-                textBufferRef.current += textPart.text;
+              const audioPart = parts.find((p: any) => p.inlineData && p.inlineData.mimeType.startsWith('audio/'));
+              if (audioPart) {
+                const base64 = audioPart.inlineData.data;
+                const bin = atob(base64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                audioPlayerRef.current?.add16BitPCM(bytes.buffer);
               }
             }
 
-            if (msg.serverContent?.turnComplete) {
-              if (textBufferRef.current.trim()) {
-                const finalText = textBufferRef.current;
-                setLogs(prev => [...prev, { role: 'assistant', text: finalText }]);
-                // SPEAK WITH OPENAI
-                speak(finalText);
-                textBufferRef.current = '';
-              }
-            }
-
-            // TOOL EXECUTION
+            // EXECUTE TOOLS
             if (msg.toolCall) {
               console.log("🛠️ Tool Call:", msg.toolCall);
               msg.toolCall.functionCalls.forEach((fc: any) => {
@@ -242,22 +245,23 @@ export const useLiveSession = ({
                   onSetDinersRef.current(args.count);
                 } else if (fc.name === 'addToOrder') {
                   const searchName = (args.itemName || '').toLowerCase().trim();
-                  console.log(`🔎 Searching for: "${searchName}"`);
+                  console.log(`🔎 Buscando: "${searchName}"`);
 
-                  // AGGRESSIVE MATCHING
+                  // 1. Exact
                   let item = menuRef.current.find(m => m.name.toLowerCase() === searchName);
+                  // 2. Partial
                   if (!item) item = menuRef.current.find(m => m.name.toLowerCase().includes(searchName));
                   if (!item) item = menuRef.current.find(m => searchName.includes(m.name.toLowerCase()));
 
-                  // FALLBACK FOR FEEDBACK
+                  // 3. Fallback (CRITICAL)
                   if (!item) {
                     item = {
                       id: 'temp-' + Date.now(),
-                      name: args.itemName + " (Manual)",
+                      name: args.itemName + " *", // Marked
                       price: 0,
                       category: 'otros',
-                      description: 'Item fuera de carta',
-                      image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c'
+                      description: 'No en carta',
+                      image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1'
                     };
                   }
 
@@ -279,16 +283,20 @@ export const useLiveSession = ({
             }
           },
           onclose: () => disconnect(),
-          onerror: () => disconnect()
+          onerror: (e) => {
+            console.error(e);
+            disconnect();
+          }
         }
       });
       sessionRef.current = sessionPromise;
-    } catch (e) {
-      console.error(e);
+
+    } catch (error) {
+      console.error("Connect Failure:", error);
       setStatus('error');
       disconnect();
     }
-  }, [disconnect, speak]);
+  }, [disconnect]);
 
   useEffect(() => { return () => disconnect(); }, [disconnect]);
 
