@@ -267,7 +267,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v15.0 (Retell Agent Official)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v16.0 (Retell Core + Visual Fix)</p>
         </div>
       </div>
     );
