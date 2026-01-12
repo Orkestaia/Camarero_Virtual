@@ -348,6 +348,23 @@ function App() {
                     className="w-full bg-[#FDF8F3] text-[#1B4332] rounded-xl py-4 font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
                   >
                     <Mic size={20} />
+                    <span>Hablar con Patxi</span>
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsMuted(!isMuted)}
+                      className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isMuted ? 'bg-red-500/20 text-red-100 border border-red-500/50' : 'bg-stone-800/50 text-white border border-stone-600'}`}
+                    >
+                      {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                      {isMuted ? "Mutear" : "Pausar"}
+                    </button>
+                    <button
+                      onClick={disconnect}
+                      className="px-6 rounded-xl bg-red-600 text-white font-bold"
+                    >
+                      X
+                    </button>
                   </div>
                 )}
               </div>
