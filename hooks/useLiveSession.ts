@@ -1,42 +1,41 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { createPcmBlob } from '../utils/audio';
-import { SYSTEM_INSTRUCTION } from '../constants';
 
-// SIMPLE AUDIO PLAYER (Native/No Libs)
-class Player {
-  ctx: AudioContext;
-  queue: Float32Array[] = [];
-  isPlaying = false;
+// --- USER PROVIDED PROMPT (ADAPTED) ---
+const RETELL_PROMPT = `
+SISTEMA: Eres Patxi, el camarero virtual del Bar Jaisquibel.
+Voz masculina, acento español con ligero toque vasco.
+Profesional, cercano, eficiente y con conocimiento experto del producto.
 
-  constructor(ctx: AudioContext) {
-    this.ctx = ctx;
-  }
+SALUDOS:
+"Egun on! Bienvenidos al Jaisquibel. Soy Patxi, cuantos sois?"
 
-  add(data: ArrayBuffer) {
-    const int16 = new Int16Array(data);
-    const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
-    this.queue.push(float32);
-    this.play();
-  }
+REGLAS DE HERRAMIENTAS:
+1. setDiners: Preguntar siempre al inicio. "Somos 3" -> setDiners(3).
+2. addToOrder:
+   - SOLO cuando el cliente pida AÑADIR algo explícitamente.
+   - "Ponme unas ostras" -> addToOrder("Ostra S dos by Sorlut", 1).
+   - "Dos de gambas" -> addToOrder("Gamba blanca a la plancha", 2).
+   - NO usar cuando recapitulas el pedido.
+3. removeFromOrder:
+   - Cuando dicen "quita", "borra", "sin", "ya no quiero".
+   - "Quita los calamares" -> removeFromOrder("Calamares a la romana").
+4. confirmOrder:
+   - SOLO cuando confirman el pedido final ("marcha", "eso es todo").
+   - ANTES de confirmar, haz un RESUMEN VERBAL. "Entonces tenemos X e Y. Correcto?".
 
-  play() {
-    if (this.isPlaying || this.queue.length === 0) return;
-    this.isPlaying = true;
-    const chunk = this.queue.shift();
-    if (!chunk) { this.isPlaying = false; return; }
+LO QUE PATXI NO DEBE HACER:
+- NO inventar platos. Si piden algo fuera de carta, di que no lo tienes.
+- NO repetir información innecesaria.
+- SOLO confirma verbalmente "Anotado" TRAS llamar a la herramienta.
 
-    const buf = this.ctx.createBuffer(1, chunk.length, 24000);
-    buf.getChannelData(0).set(chunk);
-    const src = this.ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(this.ctx.destination);
-    src.onended = () => { this.isPlaying = false; this.play(); };
-    src.start();
-  }
-  stop() { this.queue = []; this.isPlaying = false; }
-}
+CARTA (REFERENCIA):
+- Ostra S dos by Sorlut, Gamba blanca, Mejillones Diablo, Calamares a la romana, Pulpo
+- Anchoas, Paletilla Iberica, Ensalada aguacate, Tabla Quesos
+- Hamburguesa Jaisquibel, Mini croquetas, Patatas salsas, Sandwich Mixto
+- Torrija con helado
+`;
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -66,18 +65,90 @@ export const useLiveSession = ({
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [isMuted, setIsMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(0);
-  const [lastError, setLastError] = useState<{ code: number; reason: string; time: string } | null>(null);
   const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
+  const [lastError, setLastError] = useState<{ code: number; reason: string; time: string } | null>(null);
+
+  const textBufferRef = useRef<string>('');
+  const speechQueueRef = useRef<string[]>([]);
+  const isSpeakingRef = useRef<boolean>(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const playerRef = useRef<Player | null>(null);
   const sessionRef = useRef<Promise<any> | null>(null);
 
-  // REFS FOR PROPS
+  // --- OPENAI TTS ---
+  const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+
+  const processSpeechQueue = useCallback(async () => {
+    if (isSpeakingRef.current || speechQueueRef.current.length === 0 || !audioContextRef.current) return;
+
+    isSpeakingRef.current = true;
+    const textToSpeak = speechQueueRef.current.shift();
+    if (!textToSpeak) { isSpeakingRef.current = false; return; }
+
+    try {
+      if (!OPENAI_API_KEY) throw new Error("No OpenAI Key");
+
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: textToSpeak,
+          voice: 'onyx',
+          response_format: 'mp3',
+          speed: 1.05
+        })
+      });
+
+      if (!response.ok) throw new Error("OpenAI API Error");
+
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.onended = () => {
+        isSpeakingRef.current = false;
+        processSpeechQueue();
+      };
+      source.start(0);
+
+    } catch (error) {
+      console.warn("⚠️ TTS Fallback to Browser", error);
+      // Fallback
+      const u = new SpeechSynthesisUtterance(textToSpeak);
+      u.lang = 'es-ES';
+      const voices = performance.now() > 0 ? window.speechSynthesis.getVoices() : []; // Tickle voices
+      const es = voices.find(v => v.lang.includes('es-ES'));
+      if (es) u.voice = es;
+      u.onend = () => { isSpeakingRef.current = false; processSpeechQueue(); };
+      window.speechSynthesis.speak(u);
+    }
+  }, [OPENAI_API_KEY]);
+
+  const speak = useCallback((text: string) => {
+    speechQueueRef.current.push(text);
+    processSpeechQueue();
+  }, [processSpeechQueue]);
+
+  const disconnect = useCallback(() => {
+    if (sessionRef.current) sessionRef.current = null;
+    speechQueueRef.current = [];
+    isSpeakingRef.current = false;
+    window.speechSynthesis.cancel();
+    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+    mediaStreamRef.current = null;
+    if (inputProcessorRef.current) { inputProcessorRef.current.disconnect(); inputProcessorRef.current = null; }
+    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+    setStatus('disconnected');
+  }, []);
+
+  // Sync Props
   const menuRef = useRef(menu);
   const onAddToCartRef = useRef(onAddToCart);
+  const onRemoveFromOrderRef = useRef(onRemoveFromOrder);
   const onSetDinersRef = useRef(onSetDiners);
   const onConfirmOrderRef = useRef(onConfirmOrder);
   const dinersCountRef = useRef(dinersCount);
@@ -86,30 +157,12 @@ export const useLiveSession = ({
   useEffect(() => {
     menuRef.current = menu;
     onAddToCartRef.current = onAddToCart;
+    onRemoveFromOrderRef.current = onRemoveFromOrder;
     onSetDinersRef.current = onSetDiners;
     onConfirmOrderRef.current = onConfirmOrder;
     dinersCountRef.current = dinersCount;
     clientNameRef.current = clientName;
-  }, [menu, onAddToCart, onSetDiners, onConfirmOrder, dinersCount, clientName]);
-
-  const disconnect = useCallback(() => {
-    if (sessionRef.current) sessionRef.current = null;
-    playerRef.current?.stop();
-
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (inputProcessorRef.current) {
-      inputProcessorRef.current.disconnect();
-      inputProcessorRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    setStatus('disconnected');
-  }, []);
+  }, [menu, onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder, dinersCount, clientName]);
 
   const connect = useCallback(async () => {
     const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
@@ -121,46 +174,27 @@ export const useLiveSession = ({
       await ac.resume();
       audioContextRef.current = ac;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true } });
       mediaStreamRef.current = stream;
-
-      playerRef.current = new Player(ac);
 
       const ai = new GoogleGenAI({ apiKey: finalApiKey });
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO], // NATIVE AUDIO (Original)
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Fenrir" } } // DEEP MALE
-          },
-          generationConfig: { temperature: 0.7 },
-          systemInstruction: `Eres Patxi, un camarero del País Vasco.
-Tu voz es grave, amable y profesional.
-HABLA SIEMPRE EN ESPAÑOL DE ESPAÑA.
-
-TU MISIÓN ES TOMAR COMANDAS.
-1. Cuando te pidan comida/bebida, USA 'addToOrder'.
-2. Si no entiendes el plato, pregunta.
-3. Sé rápido. "Marchando una de bravas".
-`,
+          responseModalities: [Modality.TEXT], // BRAIN IS TEXT (SMART)
+          generationConfig: { temperature: 0.6 },
+          systemInstruction: RETELL_PROMPT,
           tools: [
             {
               functionDeclarations: [
                 {
                   name: "setDiners",
-                  description: "Set diners count",
-                  parameters: {
-                    type: "OBJECT" as any,
-                    properties: { count: { type: "INTEGER" as any } },
-                    required: ["count"]
-                  }
+                  description: "Define comensales.",
+                  parameters: { type: "OBJECT" as any, properties: { count: { type: "INTEGER" as any } }, required: ["count"] }
                 },
                 {
                   name: "addToOrder",
-                  description: "Add item to order",
+                  description: "Añadir item.",
                   parameters: {
                     type: "OBJECT" as any,
                     properties: {
@@ -172,8 +206,17 @@ TU MISIÓN ES TOMAR COMANDAS.
                   }
                 },
                 {
+                  name: "removeFromOrder",
+                  description: "Quitar item.",
+                  parameters: {
+                    type: "OBJECT" as any,
+                    properties: { itemName: { type: "STRING" as any } },
+                    required: ["itemName"]
+                  }
+                },
+                {
                   name: "confirmOrder",
-                  description: "Send to kitchen",
+                  description: "Confirmar.",
                   parameters: { type: "OBJECT" as any, properties: {} }
                 }
               ]
@@ -188,61 +231,48 @@ TU MISIÓN ES TOMAR COMANDAS.
             inputProcessorRef.current = processor;
             processor.onaudioprocess = (e) => {
               if (isMuted) return;
-              const inputData = e.inputBuffer.getChannelData(0);
-              const rms = Math.sqrt(inputData.reduce((s, v) => s + v * v, 0) / inputData.length);
+              const data = e.inputBuffer.getChannelData(0);
+              const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
               setVolumeLevel(rms * 10);
-              if (sessionRef.current) {
-                sessionRef.current.then((s: any) => s.sendRealtimeInput({ media: createPcmBlob(inputData) }));
-              }
+              if (sessionRef.current) sessionRef.current.then((s: any) => s.sendRealtimeInput({ media: createPcmBlob(data) }));
             };
             source.connect(processor);
             processor.connect(ac.destination);
           },
           onmessage: (msg: any) => {
-            // AUDIO
             if (msg.serverContent?.modelTurn) {
               const parts = msg.serverContent.modelTurn.parts || [];
-              const audio = parts.find((p: any) => p.inlineData);
-              if (audio) {
-                const bin = atob(audio.inlineData.data);
-                const buf = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-                playerRef.current?.add(buf.buffer);
-              }
+              const txt = parts.find((p: any) => p.text)?.text;
+              if (txt) textBufferRef.current += txt;
+            }
+            if (msg.serverContent?.turnComplete && textBufferRef.current.trim()) {
+              const ft = textBufferRef.current;
+              setLogs(p => [...p, { role: 'assistant', text: ft }]);
+              speak(ft);
+              textBufferRef.current = '';
             }
 
-            // TOOLS
             if (msg.toolCall) {
-              console.log("🛠️ Tool Call:", msg.toolCall);
+              console.log("🛠️ Tool:", msg.toolCall);
               msg.toolCall.functionCalls.forEach((fc: any) => {
                 const args = fc.args;
-                let result: any = { success: true };
+                let result = { success: true, message: "OK" };
 
                 if (fc.name === 'addToOrder') {
-                  const cleanName = args.itemName.trim().toLowerCase();
-                  console.log(`🔎 Searching: ${cleanName}`);
-
-                  // Logic: 1. Exact -> 2. Partial -> 3. Fallback
-                  let item = menuRef.current.find(m => m.name.toLowerCase() === cleanName);
-                  if (!item) item = menuRef.current.find(m => m.name.toLowerCase().includes(cleanName));
-                  if (!item) item = menuRef.current.find(m => cleanName.includes(m.name.toLowerCase()));
+                  const search = (args.itemName || '').toLowerCase().trim();
+                  // Strict Menu Check
+                  let item = menuRef.current.find(m => m.name.toLowerCase() === search);
+                  if (!item) item = menuRef.current.find(m => m.name.toLowerCase().includes(search));
+                  if (!item) item = menuRef.current.find(m => search.includes(m.name.toLowerCase()));
 
                   if (item) {
                     onAddToCartRef.current(item, args.quantity, args.notes);
-                    console.log("✅ Added Real Item:", item.name);
                   } else {
-                    // FALLBACK IS REQUIRED TO SHOW FEEDBACK
-                    item = {
-                      id: 'link-' + Date.now(),
-                      name: args.itemName + " (?)",
-                      price: 0,
-                      category: 'otros',
-                      description: 'Item manual',
-                      image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c'
-                    };
-                    onAddToCartRef.current(item, args.quantity, args.notes);
-                    console.log("⚠️ Added Fallback Item:", item.name);
+                    result = { success: false, message: "Item not found. Ask user to choose from menu." };
+                    console.warn("Item not found:", search);
                   }
+                } else if (fc.name === 'removeFromOrder') {
+                  onRemoveFromOrderRef.current(args.itemName);
                 } else if (fc.name === 'setDiners') {
                   onSetDinersRef.current(args.count);
                 } else if (fc.name === 'confirmOrder') {
@@ -267,7 +297,7 @@ TU MISIÓN ES TOMAR COMANDAS.
       setStatus('error');
       disconnect();
     }
-  }, [disconnect]);
+  }, [disconnect, speak]);
 
   useEffect(() => { return () => disconnect(); }, [disconnect]);
 
