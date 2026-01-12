@@ -272,7 +272,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v11.0 (Baseline Restore)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v12.0 (OpenAI Voice & Strict Menu)</p>
         </div>
       </div>
     );

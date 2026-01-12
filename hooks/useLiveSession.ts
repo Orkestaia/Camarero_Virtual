@@ -1,59 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { createPcmBlob } from '../utils/audio'; // Removed AudioPlayer import if it was external, we'll inline logic or use utils
+import { createPcmBlob } from '../utils/audio';
 import { SYSTEM_INSTRUCTION } from '../constants';
-
-// INLINE AUDIO PLAYER CLASS (To ensure no dependency issues)
-class AudioPlayer {
-  queue: Float32Array[] = [];
-  isPlaying = false;
-  ctx: AudioContext;
-  rate: number;
-
-  constructor(ctx: AudioContext, rate: number = 24000) {
-    this.ctx = ctx;
-    this.rate = rate; // Gemini 2.0 Flash returns 24kHz usually
-  }
-
-  add16BitPCM(buffer: ArrayBuffer) {
-    // Convert Int16 -> Float32
-    const int16 = new Int16Array(buffer);
-    const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) {
-      float32[i] = int16[i] / 32768.0;
-    }
-    this.queue.push(float32);
-    this.playNext();
-  }
-
-  playNext() {
-    if (this.isPlaying || this.queue.length === 0) return;
-    this.isPlaying = true;
-
-    const chunk = this.queue.shift();
-    if (!chunk) {
-      this.isPlaying = false;
-      return;
-    }
-
-    const audioBuffer = this.ctx.createBuffer(1, chunk.length, this.rate);
-    audioBuffer.getChannelData(0).set(chunk);
-
-    const source = this.ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(this.ctx.destination);
-    source.onended = () => {
-      this.isPlaying = false;
-      this.playNext();
-    };
-    source.start();
-  }
-
-  stop() {
-    this.queue = [];
-    this.isPlaying = false;
-  }
-}
 
 interface UseLiveSessionProps {
   apiKey: string;
@@ -86,14 +34,108 @@ export const useLiveSession = ({
   const [lastError, setLastError] = useState<{ code: number; reason: string; time: string } | null>(null);
   const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
 
-  // Refs
+  const textBufferRef = useRef<string>('');
+  const speechQueueRef = useRef<string[]>([]);
+  const isSpeakingRef = useRef<boolean>(false);
+
+  // Audio Context Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const inputProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  const audioPlayerRef = useRef<AudioPlayer | null>(null);
   const sessionRef = useRef<Promise<any> | null>(null);
 
-  // REFS FOR PROPS
+  // --- OPENAI TTS INTEGRATION (v12.0) ---
+  const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+
+  const processSpeechQueue = useCallback(async () => {
+    if (isSpeakingRef.current || speechQueueRef.current.length === 0 || !audioContextRef.current) return;
+
+    isSpeakingRef.current = true;
+    const textToSpeak = speechQueueRef.current.shift();
+    if (!textToSpeak) { isSpeakingRef.current = false; return; }
+
+    try {
+      if (!OPENAI_API_KEY) {
+        throw new Error("Missing OpenAI API Key");
+      }
+
+      console.log("🗣️ Speaking with OpenAI (Onyx):", textToSpeak.substring(0, 20) + "...");
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: textToSpeak,
+          voice: 'onyx', // Robust Male Voice
+          response_format: 'mp3',
+          speed: 1.05 // Slightly faster for responsiveness
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("OpenAI TTS Failed:", errText);
+        throw new Error("OpenAI API Response not OK");
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+
+      source.onended = () => {
+        isSpeakingRef.current = false;
+        processSpeechQueue();
+      };
+
+      source.start(0);
+
+    } catch (error) {
+      console.warn("⚠️ TTS Fail. Falling back to Browser Voice.", error);
+      // FALLBACK TO BROWSER TTS
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      utterance.lang = 'es-ES';
+      utterance.onend = () => {
+        isSpeakingRef.current = false;
+        processSpeechQueue();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [OPENAI_API_KEY]);
+
+  const speak = useCallback((text: string) => {
+    if (!text) return;
+    speechQueueRef.current.push(text);
+    processSpeechQueue();
+  }, [processSpeechQueue]);
+
+  const disconnect = useCallback(() => {
+    if (sessionRef.current) sessionRef.current = null;
+    speechQueueRef.current = [];
+    isSpeakingRef.current = false;
+    window.speechSynthesis.cancel();
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (inputProcessorRef.current) {
+      inputProcessorRef.current.disconnect();
+      inputProcessorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    setStatus('disconnected');
+  }, []);
+
+  // Sync Props
   const menuRef = useRef(menu);
   const onAddToCartRef = useRef(onAddToCart);
   const onSetDinersRef = useRef(onSetDiners);
@@ -110,32 +152,14 @@ export const useLiveSession = ({
     clientNameRef.current = clientName;
   }, [menu, onAddToCart, onSetDiners, onConfirmOrder, dinersCount, clientName]);
 
-  const disconnect = useCallback(() => {
-    if (sessionRef.current) sessionRef.current = null;
-    audioPlayerRef.current?.stop();
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (inputProcessorRef.current) {
-      inputProcessorRef.current.disconnect();
-      inputProcessorRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    setStatus('disconnected');
-  }, []);
-
   const connect = useCallback(async () => {
-    const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg'; // Legacy Hardcoded for Reliability
+    const finalApiKey = 'AIzaSyAjfPyUl3OBHYAyp4Acc4VlFYtI-Pj-Kgg';
 
     try {
       setStatus('connecting');
 
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const ac = new AudioContextClass({ sampleRate: 16000 }); // Worklet usually 16k
+      const ac = new AudioContextClass({ sampleRate: 16000 });
       await ac.resume();
       audioContextRef.current = ac;
 
@@ -144,36 +168,19 @@ export const useLiveSession = ({
       });
       mediaStreamRef.current = stream;
 
-      // INIT AUDIO PLAYER
-      const player = new AudioPlayer(ac, 24000); // 24kHz matches Gemini Flash response
-      audioPlayerRef.current = player;
-
       const ai = new GoogleGenAI({ apiKey: finalApiKey });
       const sessionPromise = ai.live.connect({
         model: 'models/gemini-2.0-flash-exp',
         config: {
-          responseModalities: [Modality.AUDIO], // NATIVE AUDIO IS BACK
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } // "Kore" = Standard Male
-          },
-          generationConfig: { temperature: 0.7 },
-          // SIMPLIFIED PROMPT FOR NATURAL FLOW
-          systemInstruction: `Eres Patxi, el camarero del Bar Jaizkibel.
-Tu voz debe ser amable, masculina y profesional.
-Tu objetivo principal es TOMAR NOTA de los pedidos y enviarlos a cocina.
-
-REGLAS DE ORO:
-1. SIEMPRE que el cliente pida algo, usa la herramienta 'addToOrder'. ES TU PRIORIDAD.
-2. Si no entiendes el plato exacto, busca el más parecido o anótalo como puedas.
-3. Sé breve. No hables por hablar. Confirma el pedido y listo.
-4. Si hablan de número de personas, usa 'setDiners'.
-`,
+          responseModalities: [Modality.TEXT], // TEXT MODALITY (Critical for Logic)
+          generationConfig: { temperature: 0.6 }, // Lower temp for strictness
+          systemInstruction: SYSTEM_INSTRUCTION + `\n\n[INSTRUCCIONES CLAVE v12]\n1. ERES UN CAMARERO EFICIENTE. Tu trabajo es ANOTAR PEDIDOS.\n2. SIEMPRE usa 'addToOrder' si el usuario pide algo.\n3. NO INVENTES PLATOS: Si el usuario pide algo que no está en la carta, DILE QUE NO LO TIENES y ofrece una alternativa.\n4. MENÚ RIGUROSO: Solo puedes añadir items que existen. Intenta buscar coincidencias (ej: 'bravas' -> 'Patatas Bravas').\n\n[CONTEXTO: MESA ${tableNumber}. CLIENTE: ${clientName || 'Cliente'}]`,
           tools: [
             {
               functionDeclarations: [
                 {
                   name: "setDiners",
-                  description: "Establece el número de comensales.",
+                  description: "Define el número de personas.",
                   parameters: {
                     type: "OBJECT" as any,
                     properties: { count: { type: "INTEGER" as any } },
@@ -182,11 +189,11 @@ REGLAS DE ORO:
                 },
                 {
                   name: "addToOrder",
-                  description: "Añade un plato a la comanda.",
+                  description: "Añade un item existente a la comanda.",
                   parameters: {
                     type: "OBJECT" as any,
                     properties: {
-                      itemName: { type: "STRING" as any },
+                      itemName: { type: "STRING" as any, description: "Nombre del item." },
                       quantity: { type: "INTEGER" as any },
                       notes: { type: "STRING" as any }
                     },
@@ -195,7 +202,7 @@ REGLAS DE ORO:
                 },
                 {
                   name: "confirmOrder",
-                  description: "Envía el pedido.",
+                  description: "Envía el pedido a cocina.",
                   parameters: { type: "OBJECT" as any, properties: {} }
                 }
               ]
@@ -221,20 +228,26 @@ REGLAS DE ORO:
             processor.connect(ac.destination);
           },
           onmessage: (msg: any) => {
-            // PLAY AUDIO
+            // HANDLE TEXT RESPONSE
             if (msg.serverContent?.modelTurn) {
               const parts = msg.serverContent.modelTurn.parts || [];
-              const audioPart = parts.find((p: any) => p.inlineData && p.inlineData.mimeType.startsWith('audio/'));
-              if (audioPart) {
-                const base64 = audioPart.inlineData.data;
-                const bin = atob(base64);
-                const bytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                audioPlayerRef.current?.add16BitPCM(bytes.buffer);
+              const textPart = parts.find((p: any) => p.text);
+              if (textPart) {
+                textBufferRef.current += textPart.text;
               }
             }
 
-            // EXECUTE TOOLS
+            if (msg.serverContent?.turnComplete) {
+              if (textBufferRef.current.trim()) {
+                const finalText = textBufferRef.current;
+                setLogs(prev => [...prev, { role: 'assistant', text: finalText }]);
+                // SPEAK (OpenAI with Fallback)
+                speak(finalText);
+                textBufferRef.current = '';
+              }
+            }
+
+            // TOOL EXECUTION
             if (msg.toolCall) {
               console.log("🛠️ Tool Call:", msg.toolCall);
               msg.toolCall.functionCalls.forEach((fc: any) => {
@@ -245,31 +258,32 @@ REGLAS DE ORO:
                   onSetDinersRef.current(args.count);
                 } else if (fc.name === 'addToOrder') {
                   const searchName = (args.itemName || '').toLowerCase().trim();
-                  console.log(`🔎 Buscando: "${searchName}"`);
+                  console.log(`🔎 Searching: "${searchName}"`);
 
+                  // STRICTER MATCHING (Reverted 'Temp Item' creation)
                   // 1. Exact
                   let item = menuRef.current.find(m => m.name.toLowerCase() === searchName);
-                  // 2. Partial
+                  // 2. Contains
                   if (!item) item = menuRef.current.find(m => m.name.toLowerCase().includes(searchName));
                   if (!item) item = menuRef.current.find(m => searchName.includes(m.name.toLowerCase()));
-
-                  // 3. Fallback (CRITICAL)
+                  // 3. Normalized Plural (last ditch)
                   if (!item) {
-                    item = {
-                      id: 'temp-' + Date.now(),
-                      name: args.itemName + " *", // Marked
-                      price: 0,
-                      category: 'otros',
-                      description: 'No en carta',
-                      image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1'
-                    };
+                    const singular = searchName.replace(/s$/, '').replace(/es$/, '');
+                    item = menuRef.current.find(m => m.name.toLowerCase().includes(singular));
                   }
 
                   if (item) {
                     onAddToCartRef.current(item, args.quantity, args.notes);
+                    console.log("✅ Added:", item.name);
+                  } else {
+                    console.warn("❌ Item not found (Strict Mode):", searchName);
+                    result = { success: false, error: "Item no encontrado en carta. Pide al usuario que elija algo del menú." };
                   }
+
                 } else if (fc.name === 'confirmOrder') {
-                  onConfirmOrderRef.current(dinersCountRef.current, clientNameRef.current);
+                  console.log("✅ Confirm Order Triggered");
+                  onConfirmOrderRef.current(dinersCountRef.current, clientNameRef.current)
+                    .then(ok => console.log("Order Sent Result:", ok));
                 }
 
                 if (sessionRef.current) {
@@ -290,13 +304,12 @@ REGLAS DE ORO:
         }
       });
       sessionRef.current = sessionPromise;
-
-    } catch (error) {
-      console.error("Connect Failure:", error);
+    } catch (e) {
+      console.error(e);
       setStatus('error');
       disconnect();
     }
-  }, [disconnect]);
+  }, [disconnect, speak]);
 
   useEffect(() => { return () => disconnect(); }, [disconnect]);
 
