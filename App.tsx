@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useLiveSession } from './hooks/useLiveSession';
+import { useRetellSession } from './hooks/useRetellSession';
 import { MenuItem, OrderItem, ConfirmedOrder } from './types';
 import Visualizer from './components/Visualizer';
 import OrderSummary from './components/OrderSummary';
