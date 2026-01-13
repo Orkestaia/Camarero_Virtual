@@ -5,19 +5,13 @@ const AGENT_ID = 'agent_e469cb9774a51cfa601ba1da21';
 const RETELL_API_KEY = 'key_84206584341d9e086a6ce02d7468';
 
 interface UseRetellSessionProps {
-    onAddToCart: (item: any, quantity: number, notes?: string) => void;
-    onRemoveFromOrder: (itemName: string) => void;
-    onSetDiners: (count: number, name?: string) => void;
     onConfirmOrder: (diners: number, name?: string, items?: any[]) => Promise<boolean>;
-    menu: any[];
+    cartItems: any[]; // Current cart state
 }
 
 export const useRetellSession = ({
-    onAddToCart,
-    onRemoveFromOrder,
-    onSetDiners,
     onConfirmOrder,
-    menu
+    cartItems
 }: UseRetellSessionProps) => {
     const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
     const [logs, setLogs] = useState<{ role: string, text: string }[]>([]);
@@ -26,134 +20,31 @@ export const useRetellSession = ({
     const retellClientRef = useRef<RetellWebClient | null>(null);
     const currentCallIdRef = useRef<string | null>(null);
 
-    // SHADOW LOGIC REFS
-    const processedActionsRef = useRef<Set<string>>(new Set());
-    const menuRef = useRef(menu);
-
     // Update refs
-    const propsRef = useRef({ onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder });
+    const propsRef = useRef({ onConfirmOrder });
+    const cartItemsRef = useRef(cartItems);
+
     useEffect(() => {
-        menuRef.current = menu;
-        propsRef.current = { onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder };
-        console.log('📋 Menu updated, items:', menu.length);
-    }, [menu, onAddToCart, onRemoveFromOrder, onSetDiners, onConfirmOrder]);
+        propsRef.current = { onConfirmOrder };
+        cartItemsRef.current = cartItems;
+        console.log('🛒 Cart updated, items:', cartItems.length);
+    }, [onConfirmOrder, cartItems]);
 
     const processTranscriptForOrders = useCallback((role: 'user' | 'agent', text: string) => {
         console.log(`🔍 Processing transcript [${role}]:`, text);
 
-        if (!text) {
-            console.log('⚠️ Empty text, skipping');
+        if (!text || role !== 'agent') {
             return;
         }
 
         const lower = text.toLowerCase();
-        const normalized = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-        // ONLY PROCESS AGENT RESPONSES
-        if (role !== 'agent') {
-            console.log('👤 User message, skipping Shadow Logic');
-            return;
-        }
-
-        console.log('🤖 Agent message detected');
-
-        // Check for negation
-        const negations = ['no tenemos', 'no queda', 'lo siento', 'no hay'];
-        if (negations.some(neg => lower.includes(neg))) {
-            console.log('❌ Negation detected, skipping');
-            return;
-        }
-
-        // 1. CONFIRM ORDER (to kitchen)
-        const confirmKeywords = ['marchando a cocina', 'envio a cocina', 'pedido confirmado', 'lo confirmo'];
+        // ONLY HANDLE CONFIRMATION - Everything else is manual via UI
+        const confirmKeywords = ['marchando a cocina', 'envio a cocina', 'pedido confirmado', 'confirmo el pedido'];
         if (confirmKeywords.some(k => lower.includes(k))) {
-            const actionKey = `confirm_${Date.now()}`;
-            if (!processedActionsRef.current.has(actionKey)) {
-                console.log('✅ CONFIRM ORDER TRIGGERED');
-                processedActionsRef.current.add(actionKey);
-                propsRef.current.onConfirmOrder(1, 'Cliente');
-            }
-        }
-
-        // 2. ADD TO ORDER - SMART RECAP DETECTION
-        // Count how many menu items are mentioned
-        let mentionedItems: any[] = [];
-        menuRef.current.forEach(item => {
-            const itemNameLower = item.name.toLowerCase();
-            if (lower.includes(itemNameLower)) {
-                mentionedItems.push(item);
-            }
-        });
-
-        console.log(`📊 Items mentioned in message: ${mentionedItems.length}`);
-
-        // Detect recap phrases
-        const recapPhrases = ['entonces tenemos', 'recapitulo', 'resumiendo', 'en total'];
-        const hasRecapPhrase = recapPhrases.some(phrase => lower.includes(phrase));
-
-        // SMART LOGIC: Only block if it's a TRUE recap (multiple items + recap phrase)
-        if (hasRecapPhrase && mentionedItems.length > 1) {
-            console.log(`📋 TRUE RECAP DETECTED (${mentionedItems.length} items + recap phrase) - BLOCKING`);
-            return; // Don't add anything
-        }
-
-        // Check for add keywords - EXPANDED for natural language
-        const addKeywords = [
-            'marchando', 'anoto', 'apunto', 'añado',
-            'ponme', 'pongo', 'quiero', 'dame', 'deme',
-            'traeme', 'traiga', 'trae', 'pon',
-            'voy a', 'me pones', 'nos pones',
-            'para mi', 'para nosotros'
-        ];
-        const hasAddKeyword = addKeywords.some(k => lower.includes(k));
-
-        if (hasAddKeyword) {
-            console.log('🎯 Add keyword detected, processing items...');
-
-            menuRef.current.forEach(item => {
-                const itemNameLower = item.name.toLowerCase();
-                const itemNameNormalized = itemNameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-                // Multiple matching strategies
-                const exactMatch = lower.includes(itemNameLower);
-                const normalizedMatch = normalized.includes(itemNameNormalized);
-
-                // Partial word matching
-                const itemWords = itemNameLower.split(' ');
-                const partialMatch = itemWords.some(word => word.length > 3 && lower.includes(word));
-
-                if (exactMatch || normalizedMatch || partialMatch) {
-                    const actionKey = `add_${item.id}_${text.substring(0, 20)}`;
-
-                    if (!processedActionsRef.current.has(actionKey)) {
-                        console.log(`✅ ADDING ITEM: ${item.name}`);
-                        processedActionsRef.current.add(actionKey);
-                        propsRef.current.onAddToCart(item, 1);
-                    } else {
-                        console.log(`⏭️ Already added: ${item.name}`);
-                    }
-                }
-            });
-        }
-
-        // 3. REMOVE FROM ORDER - EXPANDED
-        const removeKeywords = [
-            'quito', 'quita', 'borro', 'borra', 'elimino', 'elimina',
-            'cancela', 'cancelo', 'retira', 'retiro',
-            'no quiero', 'ya no', 'mejor no'
-        ];
-        if (removeKeywords.some(k => lower.includes(k))) {
-            console.log('🗑️ Remove keyword detected');
-            menuRef.current.forEach(item => {
-                if (lower.includes(item.name.toLowerCase())) {
-                    const actionKey = `remove_${item.id}_${text.substring(0, 20)}`;
-                    if (!processedActionsRef.current.has(actionKey)) {
-                        console.log(`🗑️ REMOVING ITEM: ${item.name}`);
-                        processedActionsRef.current.add(actionKey);
-                        propsRef.current.onRemoveFromOrder(item.name);
-                    }
-                }
-            });
+            console.log('✅ CONFIRM ORDER TRIGGERED');
+            console.log('🛒 Current cart:', cartItemsRef.current);
+            propsRef.current.onConfirmOrder(1, 'Cliente');
         }
     }, []);
 
@@ -164,7 +55,6 @@ export const useRetellSession = ({
         client.on('call_started', () => {
             console.log('📞 Call started');
             setStatus('connected');
-            processedActionsRef.current.clear();
         });
 
         client.on('call_ended', () => {
@@ -193,7 +83,6 @@ export const useRetellSession = ({
                         return [...prev, { role, text: lastMsg.content }];
                     });
 
-                    // TRIGGER SHADOW LOGIC
                     processTranscriptForOrders(lastMsg.role, lastMsg.content);
                 }
             }
@@ -211,7 +100,6 @@ export const useRetellSession = ({
             console.log('🔗 Connecting to Retell...');
             setStatus('connecting');
             setLastError(null);
-            processedActionsRef.current.clear();
 
             const response = await fetch('https://api.retellai.com/v2/create-web-call', {
                 method: 'POST',
