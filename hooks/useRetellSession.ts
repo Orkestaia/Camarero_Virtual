@@ -47,9 +47,9 @@ export const useRetellSession = ({
         }
 
         const lower = text.toLowerCase();
-        const normalized = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove accents
+        const normalized = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-        // ONLY PROCESS AGENT RESPONSES (when he confirms)
+        // ONLY PROCESS AGENT RESPONSES
         if (role !== 'agent') {
             console.log('👤 User message, skipping Shadow Logic');
             return;
@@ -57,7 +57,7 @@ export const useRetellSession = ({
 
         console.log('🤖 Agent message detected');
 
-        // Check for negation first
+        // Check for negation
         const negations = ['no tenemos', 'no queda', 'lo siento', 'no hay'];
         if (negations.some(neg => lower.includes(neg))) {
             console.log('❌ Negation detected, skipping');
@@ -75,34 +75,34 @@ export const useRetellSession = ({
             }
         }
 
-        // 2. ADD TO ORDER - Check each menu item
-        // BUT FIRST: Check if this is a RECAP (summary) rather than a new confirmation
-        const recapPhrases = [
-            'entonces tenemos',
-            'recapitulo',
-            'resumiendo',
-            'en total',
-            'para confirmar',
-            'correcto?',
-            'es correcto',
-            'todo bien',
-            'perfecto entonces',
-            'tenemos entonces'
-        ];
+        // 2. ADD TO ORDER - SMART RECAP DETECTION
+        // Count how many menu items are mentioned
+        let mentionedItems: any[] = [];
+        menuRef.current.forEach(item => {
+            const itemNameLower = item.name.toLowerCase();
+            if (lower.includes(itemNameLower)) {
+                mentionedItems.push(item);
+            }
+        });
 
-        const isRecap = recapPhrases.some(phrase => lower.includes(phrase));
+        console.log(`📊 Items mentioned in message: ${mentionedItems.length}`);
 
-        if (isRecap) {
-            console.log('📋 RECAP DETECTED - Skipping item addition to avoid duplicates');
-            return; // Don't add items during recaps
+        // Detect recap phrases
+        const recapPhrases = ['entonces tenemos', 'recapitulo', 'resumiendo', 'en total'];
+        const hasRecapPhrase = recapPhrases.some(phrase => lower.includes(phrase));
+
+        // SMART LOGIC: Only block if it's a TRUE recap (multiple items + recap phrase)
+        if (hasRecapPhrase && mentionedItems.length > 1) {
+            console.log(`📋 TRUE RECAP DETECTED (${mentionedItems.length} items + recap phrase) - BLOCKING`);
+            return; // Don't add anything
         }
 
+        // Check for add keywords
         const addKeywords = ['marchando', 'anoto', 'apunto', 'añado'];
         const hasAddKeyword = addKeywords.some(k => lower.includes(k));
 
         if (hasAddKeyword) {
-            console.log('🎯 Add keyword detected, checking menu items...');
-            console.log('📋 Current menu:', menuRef.current.map(m => m.name));
+            console.log('🎯 Add keyword detected, processing items...');
 
             menuRef.current.forEach(item => {
                 const itemNameLower = item.name.toLowerCase();
@@ -112,7 +112,7 @@ export const useRetellSession = ({
                 const exactMatch = lower.includes(itemNameLower);
                 const normalizedMatch = normalized.includes(itemNameNormalized);
 
-                // Partial word matching (e.g., "bravas" matches "Patatas Bravas")
+                // Partial word matching
                 const itemWords = itemNameLower.split(' ');
                 const partialMatch = itemWords.some(word => word.length > 3 && lower.includes(word));
 
@@ -170,12 +170,9 @@ export const useRetellSession = ({
         });
 
         client.on('update', (update) => {
-            console.log('📨 Retell update received:', update);
-
             if (update.transcript) {
                 const lastMsg = update.transcript[update.transcript.length - 1];
                 if (lastMsg) {
-                    console.log('💬 New transcript message:', lastMsg);
                     const role = lastMsg.role === 'agent' ? 'assistant' : 'user';
 
                     setLogs(prev => {
