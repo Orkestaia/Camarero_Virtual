@@ -212,7 +212,10 @@ function App() {
     logs,
     lastError
   } = useRetellSession({
-    cartItems, // Pass current cart state
+    menu,
+    cartItems,
+    onAddToCart: (item, qty, notes) => handleAddToCart(item, qty, notes),
+    onRemoveFromOrder: (name) => handleRemoveFromOrder(name),
     onConfirmOrder: (diners, name) => handleConfirmOrder(diners, name || 'Cliente'),
   });
 
@@ -264,7 +267,7 @@ function App() {
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v20.0 (Manual + Voice Confirm)</p>
+          <p className="text-[#2D5A45] text-[10px] uppercase tracking-widest">v21.0 (Improved Voice Logic)</p>
         </div>
       </div>
     );
