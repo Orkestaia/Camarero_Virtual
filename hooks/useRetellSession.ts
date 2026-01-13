@@ -97,8 +97,14 @@ export const useRetellSession = ({
             return; // Don't add anything
         }
 
-        // Check for add keywords
-        const addKeywords = ['marchando', 'anoto', 'apunto', 'añado'];
+        // Check for add keywords - EXPANDED for natural language
+        const addKeywords = [
+            'marchando', 'anoto', 'apunto', 'añado',
+            'ponme', 'pongo', 'quiero', 'dame', 'deme',
+            'traeme', 'traiga', 'trae', 'pon',
+            'voy a', 'me pones', 'nos pones',
+            'para mi', 'para nosotros'
+        ];
         const hasAddKeyword = addKeywords.some(k => lower.includes(k));
 
         if (hasAddKeyword) {
@@ -130,8 +136,12 @@ export const useRetellSession = ({
             });
         }
 
-        // 3. REMOVE FROM ORDER
-        const removeKeywords = ['quito', 'borro', 'elimino', 'sin'];
+        // 3. REMOVE FROM ORDER - EXPANDED
+        const removeKeywords = [
+            'quito', 'quita', 'borro', 'borra', 'elimino', 'elimina',
+            'cancela', 'cancelo', 'retira', 'retiro',
+            'no quiero', 'ya no', 'mejor no'
+        ];
         if (removeKeywords.some(k => lower.includes(k))) {
             console.log('🗑️ Remove keyword detected');
             menuRef.current.forEach(item => {
